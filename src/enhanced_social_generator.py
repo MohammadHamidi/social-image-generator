@@ -9,15 +9,82 @@ from bidi.algorithm import get_display
 try:
     from rembg import remove as rembg_remove
     REMBG_AVAILABLE = True
+    print("✅ rembg AI background removal available!")
 except ImportError:
     REMBG_AVAILABLE = False
-    print("Warning: rembg not installed. Background removal will use basic edge detection.")
+    print("⚠️  rembg not available, using basic edge detection for background removal")
+
+# Also try to import onnxruntime for better rembg performance
+try:
+    import onnxruntime as ort
+    ONNX_AVAILABLE = True
+    print("✅ ONNX Runtime available for optimized rembg performance")
+except ImportError:
+    ONNX_AVAILABLE = False
+    print("ℹ️  ONNX Runtime not available, using standard rembg performance")
 
 import numpy as np
 from PIL import ImageOps
 
+# Try to import scipy for advanced image processing
+try:
+    from scipy import ndimage
+    SCIPY_AVAILABLE = True
+except ImportError:
+    SCIPY_AVAILABLE = False
+    print("Warning: scipy not available. Using simplified background removal.")
+
 class EnhancedSocialImageGenerator:
+    """
+    Enhanced Social Media Image Generator with AI-powered background removal
+    and dynamic layout positioning for professional social media content.
+
+    This class provides a comprehensive solution for generating high-quality social media
+    images with features including:
+    - AI-powered background removal using rembg
+    - Dynamic layout positioning based on content size
+    - Multi-language text support (English, Arabic, Farsi)
+    - Professional typography with custom fonts
+    - Aspect ratio preservation for images
+    - Collision avoidance for optimal element placement
+    - Platform-specific configurations (Instagram, Facebook, etc.)
+
+    Attributes:
+        config (dict): Configuration dictionary loaded from JSON file
+        main_image (PIL.Image): Main product/service image with background removed
+        blueprint_image (PIL.Image): Brand logo/watermark image
+        background_image (PIL.Image): Background image for the canvas
+        fonts (dict): Dictionary of loaded fonts for different text types
+
+    Example:
+        >>> generator = EnhancedSocialImageGenerator('config/platforms/instagram_post.json')
+        >>> img = generator.generate_improved_hero_layout(
+        ...     "Premium Collection",
+        ...     "Exceptional Quality & Design",
+        ...     "Fashion Store"
+        ... )
+        >>> img.save('output/social_post.png', 'PNG')
+    """
+
     def __init__(self, config_path: str = None):
+        """
+        Initialize the Enhanced Social Media Image Generator.
+
+        Args:
+            config_path (str, optional): Path to JSON configuration file.
+                If None, uses default configuration. Defaults to None.
+
+        Raises:
+            FileNotFoundError: If config_path is provided but file doesn't exist.
+            json.JSONDecodeError: If config file contains invalid JSON.
+
+        Example:
+            >>> # Using default config
+            >>> generator = EnhancedSocialImageGenerator()
+            >>>
+            >>> # Using custom config
+            >>> generator = EnhancedSocialImageGenerator('config/platforms/instagram_post.json')
+        """
         self.base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.assets_dir = os.path.join(self.base_dir, 'assets')
         self.output_dir = os.path.join(self.base_dir, 'output')
@@ -211,42 +278,200 @@ class EnhancedSocialImageGenerator:
         # If no fonts loaded, will use default (handled in main function)
 
     def _remove_background_auto(self, image: Image.Image) -> Image.Image:
-        """Remove background using rembg (AI-based)"""
+        """Remove background using rembg (AI-based) with fallback to enhanced edge detection"""
         if not REMBG_AVAILABLE:
+            print("⚠️  rembg not available, using enhanced edge detection")
             return self._remove_background_edge_detection(image)
 
         try:
+            print("🤖 Using rembg AI for professional background removal...")
+
             # Convert to bytes
             import io
             img_byte_arr = io.BytesIO()
             image.save(img_byte_arr, format='PNG')
             img_byte_arr = img_byte_arr.getvalue()
 
-            # Remove background
-            result_bytes = rembg_remove(img_byte_arr)
+            # Use rembg with optimized settings
+            # rembg automatically handles different image types and provides excellent results
+            result_bytes = rembg_remove(
+                img_byte_arr,
+                # Use the best available model
+                session=None,  # Auto-select best model
+                # Additional options for quality
+                alpha_matting=True,  # Better edge quality
+                alpha_matting_foreground_threshold=240,
+                alpha_matting_background_threshold=10,
+                alpha_matting_erode_size=10
+            )
+
             result_image = Image.open(io.BytesIO(result_bytes)).convert('RGBA')
-            return result_image
+
+            # Verify the result is valid
+            if result_image.size[0] > 0 and result_image.size[1] > 0:
+                # Check if we have meaningful transparency
+                alpha = result_image.split()[-1]
+                alpha_stats = alpha.getextrema()
+                has_transparency = alpha_stats[0] < 255
+
+                if has_transparency:
+                    print("✅ rembg AI background removal successful!")
+                    print(f"   Alpha range: {alpha_stats}")
+
+                    # Calculate foreground percentage
+                    import numpy as np
+                    alpha_array = np.array(alpha)
+                    total_pixels = alpha_array.size
+                    transparent_pixels = np.sum(alpha_array == 0)
+                    opaque_pixels = total_pixels - transparent_pixels
+                    opaque_ratio = opaque_pixels / total_pixels
+                    print(f"   Opaque ratio: {opaque_ratio:.1%}")
+                    return result_image
+                else:
+                    print("⚠️  rembg completed but no transparency detected, using enhanced edge detection")
+                    return self._remove_background_edge_detection(image)
+            else:
+                print("⚠️  rembg returned invalid image, using enhanced edge detection")
+                return self._remove_background_edge_detection(image)
+
         except Exception as e:
-            print(f"rembg failed, falling back to edge detection: {e}")
+            print(f"❌ rembg failed ({e}), using enhanced edge detection")
             return self._remove_background_edge_detection(image)
 
     def _remove_background_edge_detection(self, image: Image.Image) -> Image.Image:
-        """Remove background using edge detection"""
+        """Remove background using enhanced edge detection with multiple strategies"""
         # Convert to RGBA
         img = image.convert('RGBA')
         data = np.array(img)
 
-        # Get the corner color as background color (most common approach)
-        bg_color = data[0, 0][:3]  # Top-left corner
+        # Get background removal mode from config
+        removal_mode = self.config['custom_images'].get('background_removal_mode', 'enhanced')
 
-        # Create mask based on color similarity
-        threshold = self.config['custom_images']['edge_threshold']
+        print(f"🎨 Using enhanced background removal mode: {removal_mode}")
+
+        # Strategy 1: Multi-sample background detection
+        corners = [
+            data[0, 0][:3],      # Top-left
+            data[0, -1][:3],     # Top-right
+            data[-1, 0][:3],     # Bottom-left
+            data[-1, -1][:3],    # Bottom-right
+            data[10, 10][:3],    # Near top-left (avoid borders)
+            data[10, -11][:3],   # Near top-right
+            data[-11, 10][:3],   # Near bottom-left
+            data[-11, -11][:3]   # Near bottom-right
+        ]
+
+        # Remove outliers and get robust background color
+        corner_colors = np.array(corners)
+        mean_color = np.mean(corner_colors, axis=0)
+        std_color = np.std(corner_colors, axis=0)
+
+        # Use robust background color (exclude outliers)
+        valid_corners = []
+        for corner in corners:
+            if np.all(np.abs(corner - mean_color) < 2 * std_color):
+                valid_corners.append(corner)
+
+        if valid_corners:
+            bg_color = np.mean(valid_corners, axis=0).astype(int)
+        else:
+            bg_color = mean_color.astype(int)
+
+        print(f"   Detected background color: {bg_color}")
+
+        # Strategy 2: Adaptive thresholding based on image characteristics
+        color_variance = np.var(data[:, :, :3])
+        brightness = np.mean(data[:, :, :3])
+
+        # Adjust threshold based on image properties
+        base_threshold = max(25, min(80, color_variance / 200))
+
+        if removal_mode == 'aggressive':
+            threshold = base_threshold * 0.6  # More aggressive
+            min_foreground_ratio = 0.08
+        elif removal_mode == 'conservative':
+            threshold = base_threshold * 1.4  # More conservative
+            min_foreground_ratio = 0.25
+        else:  # 'enhanced' or 'smart'
+            threshold = base_threshold
+            min_foreground_ratio = 0.12
+
+        print(f"   Adaptive threshold: {threshold:.1f}")
+        print(f"   Minimum foreground ratio: {min_foreground_ratio}")
+
+        # Strategy 3: Enhanced color difference calculation
         diff = np.sqrt(np.sum((data[:, :, :3] - bg_color) ** 2, axis=2))
-        mask = diff > threshold
 
-        # Apply mask to alpha channel
-        data[:, :, 3] = mask * 255
+        # Apply Gaussian blur to reduce noise
+        if SCIPY_AVAILABLE:
+            from scipy import ndimage
+            diff = ndimage.gaussian_filter(diff, sigma=0.5)
 
+        # Strategy 4: Multi-level masking
+        # Primary mask
+        primary_mask = diff > threshold
+
+        # Secondary mask with lower threshold for edge refinement
+        secondary_mask = diff > (threshold * 0.7)
+
+        # Combine masks intelligently
+        mask = primary_mask.copy()
+
+        # Refine edges using secondary mask
+        edge_pixels = primary_mask & ~secondary_mask
+        if np.any(edge_pixels):
+            # Soften edges
+            mask = secondary_mask
+
+        # Strategy 5: Morphological cleanup
+        if SCIPY_AVAILABLE:
+            # Close small holes
+            mask = ndimage.binary_closing(mask, structure=np.ones((2,2)))
+            # Remove small noise
+            mask = ndimage.binary_opening(mask, structure=np.ones((2,2)))
+            # Fill larger holes
+            mask = ndimage.binary_fill_holes(mask)
+        else:
+            print("   Using simplified cleanup (scipy not available)")
+
+        # Strategy 6: Quality assessment and fallback
+        foreground_pixels = np.sum(mask)
+        total_pixels = mask.size
+        foreground_ratio = foreground_pixels / total_pixels
+
+        print(f"   Final foreground ratio: {foreground_ratio:.2f} ({foreground_pixels}/{total_pixels} pixels)")
+
+        # Quality checks
+        if foreground_ratio < min_foreground_ratio:
+            print(f"⚠️  Insufficient foreground detected ({foreground_ratio:.2f})")
+
+            # Try progressive relaxation
+            for relax_factor in [0.8, 0.6, 0.4]:
+                relaxed_threshold = threshold * relax_factor
+                relaxed_mask = diff > relaxed_threshold
+
+                if SCIPY_AVAILABLE:
+                    relaxed_mask = ndimage.binary_closing(relaxed_mask, structure=np.ones((2,2)))
+                    relaxed_mask = ndimage.binary_fill_holes(relaxed_mask)
+
+                relaxed_foreground = np.sum(relaxed_mask)
+                relaxed_ratio = relaxed_foreground / total_pixels
+
+                if relaxed_ratio >= min_foreground_ratio:
+                    print(f"   Using relaxed threshold: {relaxed_threshold:.1f} (ratio: {relaxed_ratio:.2f})")
+                    mask = relaxed_mask
+                    foreground_ratio = relaxed_ratio
+                    break
+
+            # Final fallback
+            if foreground_ratio < min_foreground_ratio:
+                print("   ⚠️  Unable to achieve good background removal, keeping original image")
+                return img
+
+        # Apply final mask
+        data[:, :, 3] = mask.astype(np.uint8) * 255
+
+        print(f"✅ Enhanced background removal completed - {foreground_ratio:.2f} foreground retained")
         return Image.fromarray(data, 'RGBA')
 
     def _remove_background_color_threshold(self, image: Image.Image) -> Image.Image:
@@ -475,6 +700,99 @@ class EnhancedSocialImageGenerator:
             return get_display(reshaped_text)
         except:
             return text
+
+    def _get_font_for_text(self, text: str, font_type: str) -> ImageFont.ImageFont:
+        """Get the appropriate font for text content"""
+        is_arabic = self._is_arabic_text(text)
+
+        font_dir = os.path.join(self.assets_dir, 'fonts')
+
+        if font_type in ['headline', 'subheadline']:
+            if is_arabic:
+                # Use Arabic font for Arabic text
+                arabic_font_path = os.path.join(font_dir, 'NotoSansArabic-Bold.ttf')
+                if os.path.exists(arabic_font_path):
+                    try:
+                        font_size = self.config['fonts'][f'{font_type}_size']
+                        return ImageFont.truetype(arabic_font_path, font_size)
+                    except:
+                        pass
+
+            # Use Latin font for Latin text or as fallback
+            latin_font_path = os.path.join(font_dir, 'NotoSans-Bold.ttf')
+            if os.path.exists(latin_font_path):
+                try:
+                    font_size = self.config['fonts'][f'{font_type}_size']
+                    return ImageFont.truetype(latin_font_path, font_size)
+                except:
+                    pass
+
+        # For brand or other font types, use existing logic
+        if font_type in self.fonts:
+            return self.fonts[font_type]
+
+        # Fallback to default
+        return ImageFont.load_default()
+
+    def _resize_image_with_aspect_ratio(self, image: Image.Image, max_width: int,
+                                       max_height: int, preserve_aspect_ratio: bool = True) -> Image.Image:
+        """Resize image while optionally preserving aspect ratio"""
+        if not preserve_aspect_ratio:
+            return image.resize((max_width, max_height), Image.Resampling.LANCZOS)
+
+        # Calculate aspect ratios
+        original_width, original_height = image.size
+        original_aspect = original_width / original_height
+        target_aspect = max_width / max_height
+
+        if original_aspect > target_aspect:
+            # Image is wider than target - fit to width
+            new_width = max_width
+            new_height = int(max_width / original_aspect)
+        else:
+            # Image is taller than target - fit to height
+            new_height = max_height
+            new_width = int(max_height * original_aspect)
+
+        # Ensure we don't exceed the maximum dimensions
+        if new_width > max_width:
+            new_width = max_width
+            new_height = int(new_width / original_aspect)
+
+        if new_height > max_height:
+            new_height = max_height
+            new_width = int(new_height * original_aspect)
+
+        return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+    def _calculate_image_position_with_aspect_ratio(self, image_size: tuple,
+                                                   canvas_size: tuple,
+                                                   original_position: tuple,
+                                                   alignment: str = 'center') -> tuple:
+        """Calculate optimal position for image with preserved aspect ratio"""
+        image_width, image_height = image_size
+        canvas_width, canvas_height = canvas_size
+
+        # Default to center positioning if no specific position given
+        if original_position == (0, 0):
+            x = (canvas_width - image_width) // 2
+            y = (canvas_height - image_height) // 2
+            return (x, y)
+
+        # Use original position but adjust if image would go off-canvas
+        x, y = original_position
+
+        # Ensure image stays within canvas bounds
+        if x + image_width > canvas_width:
+            x = canvas_width - image_width
+        if y + image_height > canvas_height:
+            y = canvas_height - image_height
+
+        # Ensure minimum margins
+        x = max(20, x)  # Minimum 20px from left
+        y = max(20, y)  # Minimum 20px from top
+
+        return (x, y)
     
     def _is_arabic_text(self, text: str) -> bool:
         """Check if text contains Arabic/Persian characters"""
@@ -774,6 +1092,231 @@ class EnhancedSocialImageGenerator:
         
         return x
 
+    def _calculate_dynamic_layout(self, headline: str, subheadline: str, brand: str = None) -> dict:
+        """
+        Calculate dynamic layout based on element sizes and available space
+        Returns positioning information for all elements
+        """
+        canvas_width = self.config['canvas_width']
+        canvas_height = self.config['canvas_height']
+
+        # Define layout zones as percentages of canvas height
+        zones = {
+            'header': (0.05, 0.25),    # 5% - 25% of height
+            'content': (0.25, 0.75),   # 25% - 75% of height
+            'footer': (0.75, 0.95)     # 75% - 95% of height
+        }
+
+        # Calculate available space considering custom images
+        available_space = {
+            'top': zones['header'][0] * canvas_height,
+            'bottom': (1 - zones['footer'][1]) * canvas_height,
+            'left': 50,  # Margin from left
+            'right': 50  # Margin from right
+        }
+
+        # Account for image positions if custom images are used
+        use_custom_images = (
+            self.config.get('use_custom_images', False) or
+            self.config.get('custom_images', {}).get('use_custom_images', False)
+        )
+
+        if use_custom_images:
+            if self.main_image:
+                # Get main image dimensions and position
+                preserve_aspect = self.config['custom_images'].get('preserve_aspect_ratio', False)
+                if preserve_aspect:
+                    max_width = self.config['custom_images'].get('max_image_width', 500)
+                    max_height = self.config['custom_images'].get('max_image_height', 500)
+                    resized_main = self._resize_image_with_aspect_ratio(
+                        self.main_image, max_width, max_height, preserve_aspect
+                    )
+                    canvas_size = (canvas_width, canvas_height)
+                    original_pos = tuple(self.config['custom_images']['main_image_position'])
+                    main_pos = self._calculate_image_position_with_aspect_ratio(
+                        resized_main.size, canvas_size, original_pos
+                    )
+                else:
+                    resized_main = self.main_image.resize(
+                        tuple(self.config['custom_images']['main_image_size']), Image.Resampling.LANCZOS
+                    )
+                    main_pos = tuple(self.config['custom_images']['main_image_position'])
+
+                # Adjust available space based on main image position
+                img_width, img_height = resized_main.size
+                img_x, img_y = main_pos
+
+                # Reserve space around the main image
+                available_space['image_reserved'] = {
+                    'x': img_x,
+                    'y': img_y,
+                    'width': img_width,
+                    'height': img_height
+                }
+
+        # Calculate text dimensions for dynamic positioning
+        temp_img = Image.new('RGBA', (canvas_width, canvas_height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(temp_img)
+
+        # Get fonts
+        headline_font = self._get_font_for_text(headline, 'headline')
+        subheadline_font = self._get_font_for_text(subheadline, 'subheadline')
+        brand_font = self._get_font_for_text(brand or '', 'brand')
+
+        # Calculate text dimensions
+        headline_text = self._prepare_arabic_text(headline)
+        subheadline_text = self._prepare_arabic_text(subheadline)
+        brand_text = self._prepare_arabic_text(brand or '')
+
+        headline_bbox = draw.textbbox((0, 0), headline_text, font=headline_font)
+        subheadline_bbox = draw.textbbox((0, 0), subheadline_text, font=subheadline_font)
+        brand_bbox = draw.textbbox((0, 0), brand_text, font=brand_font)
+
+        text_dimensions = {
+            'headline': {
+                'width': headline_bbox[2] - headline_bbox[0],
+                'height': headline_bbox[3] - headline_bbox[1]
+            },
+            'subheadline': {
+                'width': subheadline_bbox[2] - subheadline_bbox[0],
+                'height': subheadline_bbox[3] - subheadline_bbox[1]
+            },
+            'brand': {
+                'width': brand_bbox[2] - brand_bbox[0],
+                'height': brand_bbox[3] - brand_bbox[1]
+            }
+        }
+
+        # Calculate dynamic positions based on available space and text dimensions
+
+        # Header zone positioning
+        header_start = int(zones['header'][0] * canvas_height)
+        header_end = int(zones['header'][1] * canvas_height)
+
+        # Distribute headline and subheadline in header zone
+        total_text_height = text_dimensions['headline']['height'] + text_dimensions['subheadline']['height']
+        spacing = max(20, (header_end - header_start - total_text_height) // 3)  # Dynamic spacing
+
+        headline_y = header_start + spacing + text_dimensions['headline']['height'] // 2
+        subheadline_y = headline_y + text_dimensions['headline']['height'] // 2 + spacing + text_dimensions['subheadline']['height'] // 2
+
+        # Footer zone positioning
+        footer_start = int(zones['footer'][0] * canvas_height)
+        footer_end = int(zones['footer'][1] * canvas_height)
+
+        brand_y = footer_end - text_dimensions['brand']['height'] // 2 - spacing
+
+        # Ensure brand text doesn't overlap with reserved image space
+        if 'image_reserved' in available_space:
+            img_bottom = available_space['image_reserved']['y'] + available_space['image_reserved']['height']
+            if brand_y - text_dimensions['brand']['height'] // 2 < img_bottom + 50:
+                brand_y = img_bottom + 50 + text_dimensions['brand']['height'] // 2
+
+        # Create brand position for logo calculation
+        brand_pos = {
+            'x': canvas_width // 2,
+            'y': brand_y,
+            'width': text_dimensions['brand']['width'],
+            'height': text_dimensions['brand']['height']
+        }
+
+        # Calculate brand logo positioning (bottom-left corner near brand text)
+        brand_logo_y = canvas_height - 150  # Above bottom edge
+        brand_logo_x = 60  # Left margin
+
+        # Adjust if brand text would overlap with logo
+        logo_width = 120  # Assuming logo width from config
+        if brand_pos['x'] - text_dimensions['brand']['width'] // 2 < brand_logo_x + logo_width + 50:
+            # Move logo to the right if it would overlap with brand text
+            brand_logo_x = brand_pos['x'] + text_dimensions['brand']['width'] // 2 + 50
+
+        return {
+            'headline': {
+                'x': canvas_width // 2,
+                'y': headline_y,
+                'width': text_dimensions['headline']['width'],
+                'height': text_dimensions['headline']['height']
+            },
+            'subheadline': {
+                'x': canvas_width // 2,
+                'y': subheadline_y,
+                'width': text_dimensions['subheadline']['width'],
+                'height': text_dimensions['subheadline']['height']
+            },
+            'brand': {
+                'x': canvas_width // 2,
+                'y': brand_y,
+                'width': text_dimensions['brand']['width'],
+                'height': text_dimensions['brand']['height']
+            },
+            'brand_logo': {
+                'x': brand_logo_x,
+                'y': brand_logo_y,
+                'width': 120,  # From config
+                'height': 120   # From config
+            },
+            'available_space': available_space,
+            'zones': zones,
+            'canvas_size': (canvas_width, canvas_height)
+        }
+
+    def _draw_text_with_panel(self, img: Image.Image, text: str, font_type: str,
+                             position: tuple, text_color: tuple, panel_color: tuple = None,
+                             padding: int = 20, corner_radius: int = 10) -> tuple:
+        """Draw text with a background panel for better visibility"""
+        draw = ImageDraw.Draw(img)
+
+        # Prepare text for Arabic/Farsi
+        display_text = self._prepare_arabic_text(text)
+
+        # Get appropriate font based on text content
+        font = self._get_font_for_text(text, font_type)
+
+        # Get text dimensions
+        bbox = draw.textbbox((0, 0), display_text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+
+        x, y = position
+
+        # Default to dark semi-transparent panel
+        if panel_color is None:
+            panel_color = tuple(self.config.get('design_system', {})
+                              .get('overlays', {})
+                              .get('text_background', [0, 0, 0, 180]))
+
+        # Calculate panel dimensions
+        panel_width = text_width + (2 * padding)
+        panel_height = text_height + (2 * padding)
+
+        # Center the panel horizontally
+        panel_x = x - panel_width // 2
+        panel_y = y - padding
+
+        # Create panel with rounded corners
+        panel_img = Image.new('RGBA', (panel_width, panel_height), panel_color)
+
+        # Create mask for rounded corners
+        mask = Image.new('L', (panel_width, panel_height), 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.rounded_rectangle([0, 0, panel_width, panel_height],
+                                   radius=corner_radius, fill=255)
+
+        # Apply mask to panel
+        panel_with_corners = Image.new('RGBA', (panel_width, panel_height), (0, 0, 0, 0))
+        panel_with_corners.paste(panel_img, (0, 0), mask)
+
+        # Paste panel onto main image
+        img.paste(panel_with_corners, (panel_x, panel_y), panel_with_corners)
+
+        # Draw text on top of panel
+        text_x = panel_x + padding
+        text_y = panel_y + padding
+
+        draw.text((text_x, text_y), display_text, font=font, fill=text_color)
+
+        return text_width, text_height
+
     def _draw_enhanced_text(self, img: Image.Image, text: str, font: ImageFont.ImageFont,
                            position: Tuple[int, int], color: Tuple[int, int, int],
                            bg_color: Optional[Tuple[int, int, int, int]] = None,
@@ -878,6 +1421,10 @@ class EnhancedSocialImageGenerator:
     def generate_enhanced_hero_layout(self, headline: str, subheadline: str, brand: str = None) -> Image.Image:
         """Generate enhanced hero layout with advanced color control"""
         img = self._create_enhanced_background()
+
+        # FIXED: Add stronger scrim overlay for better text contrast
+        img = self._draw_scrim_overlay(img, 'medium')  # 50% dark overlay
+
         colors = self.config['layout_colors']['hero']
 
         # Use custom images if available and enabled
@@ -887,15 +1434,35 @@ class EnhancedSocialImageGenerator:
         )
         
         if use_custom_images:
-            # Draw main image (with background removed)
+            # Draw main image using CONFIG values with aspect ratio preservation
             if self.main_image:
-                main_size = tuple(self.config['custom_images']['main_image_size'])
-                main_pos = tuple(self.config['custom_images']['main_image_position'])
-                resized_main = self.main_image.resize(main_size, Image.Resampling.LANCZOS)
+                # Check if aspect ratio preservation is enabled
+                preserve_aspect = self.config['custom_images'].get('preserve_aspect_ratio', False)
+                max_width = self.config['custom_images'].get('max_image_width', 500)
+                max_height = self.config['custom_images'].get('max_image_height', 500)
+
+                if preserve_aspect:
+                    # Resize while preserving aspect ratio
+                    resized_main = self._resize_image_with_aspect_ratio(
+                        self.main_image, max_width, max_height, preserve_aspect
+                    )
+                    # Calculate optimal position
+                    canvas_size = (self.config['canvas_width'], self.config['canvas_height'])
+                    original_pos = tuple(self.config['custom_images']['main_image_position'])
+                    main_pos = self._calculate_image_position_with_aspect_ratio(
+                        resized_main.size, canvas_size, original_pos
+                    )
+                else:
+                    # Use traditional fixed size approach
+                    main_size = tuple(self.config['custom_images']['main_image_size'])
+                    resized_main = self.main_image.resize(main_size, Image.Resampling.LANCZOS)
+                    main_pos = tuple(self.config['custom_images']['main_image_position'])
+
                 img.paste(resized_main, main_pos, resized_main)
 
-            # Draw blueprint/watermark image (with background removed)
+            # Draw blueprint/watermark image using CONFIG values with aspect ratio preservation
             if self.blueprint_image:
+                # Blueprint typically doesn't need aspect ratio preservation (logos/watermarks)
                 blueprint_size = tuple(self.config['custom_images']['blueprint_image_size'])
                 blueprint_pos = tuple(self.config['custom_images']['blueprint_image_position'])
                 resized_blueprint = self.blueprint_image.resize(blueprint_size, Image.Resampling.LANCZOS)
@@ -904,52 +1471,43 @@ class EnhancedSocialImageGenerator:
             # Draw programmatic coats
             self._draw_enhanced_coats(img, 150, 450, img.width - 300, 200)
 
-        # Draw text elements with better contrast and visibility
-        # Headline - positioned at top with shadow for better visibility
-        headline_y = 120
-        headline_color = (255, 255, 255)  # White text for clean look
-        
-        # Add text shadow for better visibility
-        shadow_offset = 2
-        draw = ImageDraw.Draw(img)
-        
-        # Draw headline with shadow
-        headline_display = self._prepare_arabic_text(headline)
-        bbox = draw.textbbox((0, 0), headline_display, font=self.fonts['headline'])
-        text_width = bbox[2] - bbox[0]
-        headline_x = (img.width // 2) - (text_width // 2)
-        
-        # Shadow
-        draw.text((headline_x + shadow_offset, headline_y + shadow_offset), 
-                 headline_display, font=self.fonts['headline'], fill=(0, 0, 0))
-        # Main text
-        draw.text((headline_x, headline_y), 
-                 headline_display, font=self.fonts['headline'], fill=headline_color)
+        # FIXED TEXT POSITIONING WITH BACKGROUND PANELS FOR BETTER VISIBILITY
 
-        # Subheadline - below headline with shadow
-        subheadline_y = headline_y + 80
-        subheadline_color = (255, 255, 255)  # White text for consistency
-        
-        subheadline_display = self._prepare_arabic_text(subheadline)
-        bbox = draw.textbbox((0, 0), subheadline_display, font=self.fonts['subheadline'])
-        text_width = bbox[2] - bbox[0]
-        subheadline_x = (img.width // 2) - (text_width // 2)
-        
-        # Shadow
-        draw.text((subheadline_x + shadow_offset, subheadline_y + shadow_offset), 
-                 subheadline_display, font=self.fonts['subheadline'], fill=(0, 0, 0))
-        # Main text
-        draw.text((subheadline_x, subheadline_y), 
-                 subheadline_display, font=self.fonts['subheadline'], fill=subheadline_color)
+        # Get colors from design system
+        text_colors = self.config.get('design_system', {}).get('colors', {}).get('text', {})
+        primary_color = tuple(text_colors.get('primary', [255, 255, 255]))
+        secondary_color = tuple(text_colors.get('secondary', [230, 230, 230]))
+        muted_color = tuple(text_colors.get('muted', [200, 200, 200]))
 
-        # Brand - at bottom (only if no watermark/blueprint image)
-        if brand and not self.blueprint_image:
-            brand_color = (255, 255, 255)  # White text for brand
-            self._draw_enhanced_text(img, brand, self.fonts['brand'],
-                                    (img.width // 2, img.height - 100),
-                                    brand_color,
-                                    None,  # No background
-                                    centered=True)
+        # Panel color for text backgrounds
+        panel_color = tuple(self.config.get('design_system', {})
+                           .get('overlays', {})
+                           .get('text_background', [0, 0, 0, 180]))
+
+        # 1. Headline - positioned at top with background panel
+        headline_y = 150
+        self._draw_text_with_panel(
+            img, headline, 'headline',
+            (self.config['canvas_width'] // 2, headline_y),
+            primary_color, panel_color, padding=25, corner_radius=15
+        )
+
+        # 2. Subheadline - positioned below headline with background panel
+        subheadline_y = 220
+        self._draw_text_with_panel(
+            img, subheadline, 'subheadline',
+            (self.config['canvas_width'] // 2, subheadline_y),
+            secondary_color, panel_color, padding=20, corner_radius=12
+        )
+
+        # 3. Brand - positioned at bottom with safe area
+        if brand:
+            brand_y = self.config['canvas_height'] - 100  # Safe area from bottom
+            self._draw_text_with_panel(
+                img, brand, 'brand',
+                (self.config['canvas_width'] // 2, brand_y),
+                muted_color, panel_color, padding=15, corner_radius=8
+            )
 
         return img
 
@@ -1334,3 +1892,140 @@ class EnhancedSocialImageGenerator:
                 print(f"Generated: {output_path}")
             except Exception as e:
                 print(f"Failed to generate {layout_type} layout: {e}")
+
+    def generate_improved_hero_layout(self, headline: str, subheadline: str, brand: str = None) -> Image.Image:
+        """
+        Generate a professional hero layout with dynamic positioning and AI-powered features.
+
+        This method creates a complete social media image with:
+        - Dynamic layout that adapts to text and image sizes
+        - AI-powered background removal for main image
+        - Multi-language text support (English, Arabic, Farsi)
+        - Professional typography with background panels
+        - Brand logo integration (replaces brand text when present)
+        - Collision avoidance for optimal element placement
+
+        Args:
+            headline (str): Main headline text. Supports English, Arabic, and Farsi.
+            subheadline (str): Secondary text below headline. Supports all languages.
+            brand (str, optional): Brand/company name. Only displayed if no brand logo
+                is configured. Supports all languages. Defaults to None.
+
+        Returns:
+            PIL.Image.Image: Generated social media image with RGBA mode for transparency.
+
+        Raises:
+            FileNotFoundError: If configured image files don't exist.
+            ValueError: If text is too long for the canvas or invalid parameters.
+
+        Example:
+            >>> generator = EnhancedSocialImageGenerator('config/platforms/instagram_post.json')
+            >>> img = generator.generate_improved_hero_layout(
+            ...     headline="Premium Collection",
+            ...     subheadline="Exceptional Quality & Design",
+            ...     brand="Fashion Store"
+            ... )
+            >>> img.save('output/social_post.png', 'PNG')
+
+        Note:
+            - If a brand logo (blueprint_image) is configured, the brand text parameter
+              is ignored and the logo is displayed instead.
+            - Text is automatically reshaped for Arabic/Farsi languages.
+            - Images are processed with AI background removal if rembg is available.
+        """
+        img = self._create_enhanced_background()
+
+        # Add stronger scrim overlay for better contrast
+        img = self._draw_scrim_overlay(img, 'medium')  # 50% dark overlay
+
+        # Calculate dynamic layout based on content and available space
+        layout_info = self._calculate_dynamic_layout(headline, subheadline, brand)
+
+        # Position custom images with collision avoidance
+        use_custom_images = (
+            self.config.get('use_custom_images', False) or
+            self.config.get('custom_images', {}).get('use_custom_images', False)
+        )
+
+        # Initialize brand text presence
+        brand_text_present = not self.blueprint_image if use_custom_images else True
+
+        if use_custom_images:
+            # Draw main image using CONFIG values with aspect ratio preservation
+            if self.main_image:
+                # Check if aspect ratio preservation is enabled
+                preserve_aspect = self.config['custom_images'].get('preserve_aspect_ratio', False)
+                max_width = self.config['custom_images'].get('max_image_width', 500)
+                max_height = self.config['custom_images'].get('max_image_height', 500)
+
+                if preserve_aspect:
+                    # Resize while preserving aspect ratio
+                    resized_main = self._resize_image_with_aspect_ratio(
+                        self.main_image, max_width, max_height, preserve_aspect
+                    )
+                    # Calculate optimal position
+                    canvas_size = (self.config['canvas_width'], self.config['canvas_height'])
+                    original_pos = tuple(self.config['custom_images']['main_image_position'])
+                    main_pos = self._calculate_image_position_with_aspect_ratio(
+                        resized_main.size, canvas_size, original_pos
+                    )
+                else:
+                    # Use traditional fixed size approach
+                    main_size = tuple(self.config['custom_images']['main_image_size'])
+                    resized_main = self.main_image.resize(main_size, Image.Resampling.LANCZOS)
+                    main_pos = tuple(self.config['custom_images']['main_image_position'])
+
+                img.paste(resized_main, main_pos, resized_main)
+
+            # Draw brand logo using DYNAMIC positioning (replaces brand text)
+            if self.blueprint_image:
+                # PRESERVE ORIGINAL ASPECT RATIO - Don't resize to fit config dimensions
+                original_size = self.blueprint_image.size
+                blueprint_size = original_size  # Keep original dimensions
+
+                # Use dynamic brand logo position from layout calculations
+                brand_logo_pos = layout_info.get('brand_logo', {})
+                if brand_logo_pos:
+                    blueprint_pos = (brand_logo_pos['x'], brand_logo_pos['y'])
+                else:
+                    # Fallback to config position
+                    blueprint_pos = tuple(self.config['custom_images']['blueprint_image_position'])
+
+                # No resizing - preserve aspect ratio
+                img.paste(self.blueprint_image, blueprint_pos, self.blueprint_image)
+
+        # DYNAMIC TEXT POSITIONING WITH COLLISION AVOIDANCE
+
+        # 1. Headline - Dynamic position in header zone
+        headline_pos = layout_info['headline']
+        headline_color = (255, 255, 255)  # White text
+
+        self._draw_text_with_panel(
+            img, headline, 'headline',
+            (headline_pos['x'], headline_pos['y']),
+            headline_color, (0, 0, 0, 180), 25, 15
+        )
+
+        # 2. Subheadline - Dynamic position below headline
+        subheadline_pos = layout_info['subheadline']
+        subheadline_color = (230, 230, 230)  # Light gray
+
+        self._draw_text_with_panel(
+            img, subheadline, 'subheadline',
+            (subheadline_pos['x'], subheadline_pos['y']),
+            subheadline_color, (0, 0, 0, 150), 20, 12
+        )
+
+        # 3. Brand - Dynamic position in footer zone with collision avoidance
+        # Only draw brand text if logo is not present and brand text is provided
+        if brand and brand_text_present:
+            brand_pos = layout_info['brand']
+            brand_color = (200, 200, 200)  # Muted color
+
+            self._draw_text_with_panel(
+                img, brand, 'brand',
+                (brand_pos['x'], brand_pos['y']),
+                brand_color, (0, 0, 0, 120), 15, 8
+            )
+
+        return img

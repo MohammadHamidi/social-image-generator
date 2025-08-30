@@ -1,11 +1,25 @@
-Pillow==10.0.0
-requests==2.31.0
-python-bidi==0.4.2
-arabic-reshaper==3.0.0
-rembg==2.0.56
-numpy==1.24.3
-onnxruntime==1.15.1
-pooch==1.7.0
-flask==3.0.0
-flask-cors==4.0.0
-werkzeug==3.0.1
+# Core image processing
+Pillow>=10.0.0
+numpy>=1.21.0
+
+# Text processing for Arabic/Farsi
+arabic-reshaper>=3.0.0
+python-bidi>=0.4.2
+
+# AI/ML dependencies
+rembg>=2.0.0
+onnxruntime>=1.15.0
+scipy>=1.7.0
+
+# Flask API server
+Flask>=2.3.0
+Flask-CORS>=4.0.0
+Werkzeug>=2.3.0
+requests>=2.31.0
+
+# Optional: Enhanced image processing
+scikit-image>=0.19.0
+
+# Development dependencies
+pytest>=7.0.0
+pytest-cov>=4.0.0

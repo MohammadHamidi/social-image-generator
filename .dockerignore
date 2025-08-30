@@ -1,18 +1,13 @@
-# Ignore development files
+# Version control
 .git
 .gitignore
-*.md
-README.md
+.github/
 
-# Ignore output and generated files
-output/
-generated/
-uploads/
-venv/
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
 .Python
 build/
 develop-eggs/
@@ -30,25 +25,54 @@ wheels/
 .installed.cfg
 *.egg
 
-# Ignore IDE files
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# Ignore OS files
+# OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# Ignore test files
-test_*.py
-debug_*.py
-*_test.py
+# Documentation
+*.md
+!README.md
+docs/
 
-# Keep only necessary files
-!assets/fonts/
-!src/
-!config/
-!social_image_api.py
-!requirements.txt
+# Test files (can be mounted if needed)
+tests/
+*_test.py
+test_*.py
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Output directory (will be mounted)
+output/
+
+# Development files
+.dockerignore
+Dockerfile*
+docker-compose*.yml
+Makefile

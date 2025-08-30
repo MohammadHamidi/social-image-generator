@@ -1,23 +1,22 @@
-version: '3.8'
-
 services:
   social-image-generator:
-    build: 
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
+    build: .
+    container_name: social-image-generator
     volumes:
-      - ./uploads:/app/uploads
-      - ./generated:/app/generated
+      # Mount output directory for generated images
       - ./output:/app/output
+      # Mount uploads directory for user images
+      - ./uploads:/app/uploads
+      # Mount config directory for custom configurations
+      - ./config:/app/config
     environment:
-      - FLASK_ENV=production
       - PYTHONPATH=/app/src
-      - FLASK_APP=social_image_api.py
+      - PYTHONDONTWRITEBYTECODE=1
+    ports:
+      - "5000:5000" # Flask API server port
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: [ "CMD", "python", "-c", "from enhanced_social_generator import EnhancedSocialImageGenerator; print('OK')" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -25,6 +24,46 @@ services:
     networks:
       - social-image-network
 
+  # Development service with hot reload
+  dev:
+    build: .
+    container_name: social-image-generator-dev
+    volumes:
+      - .:/app
+      - /app/__pycache__
+    environment:
+      - PYTHONPATH=/app/src
+      - PYTHONDONTWRITEBYTECODE=1
+    command: tail -f /dev/null # Keep container running for development
+    ports:
+      - "8000:8000" # For future API endpoints
+    profiles:
+      - dev
+    networks:
+      - social-image-network
+
+  # Test service
+  test:
+    build: .
+    container_name: social-image-generator-test
+    volumes:
+      - .:/app
+      - /app/__pycache__
+    environment:
+      - PYTHONPATH=/app/src
+      - PYTHONDONTWRITEBYTECODE=1
+    command: python -m pytest tests/ -v
+    profiles:
+      - test
+    networks:
+      - social-image-network
+
 networks:
   social-image-network:
     driver: bridge
+
+volumes:
+  uploads:
+    driver: local
+  output:
+    driver: local

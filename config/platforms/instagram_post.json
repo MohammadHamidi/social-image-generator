@@ -1,6 +1,4 @@
 {
-  "canvas_width": 1080,
-  "canvas_height": 1350,
   "design_system": {
     "grid": {
       "max_text_width": 780,
@@ -61,27 +59,18 @@
     "use_custom_images": true,
     "main_image_path": "uploads/main/main.png",
     "blueprint_image_path": "uploads/watermark/watermark.png",
-    "main_image_size": [
-      450,
-      450
-    ],
-    "blueprint_image_size": [
-      120,
-      120
-    ],
-    "main_image_position": [
-      315,
-      550
-    ],
-    "blueprint_image_position": [
-      60,
-      1150
-    ],
     "remove_background": true,
-    "background_removal_mode": "smart",
     "background_image_path": "uploads/background/bg.png",
     "preserve_aspect_ratio": true,
-    "max_image_width": 500,
-    "max_image_height": 500
-  }
+    "max_image_width": 702,
+    "max_image_height": 702,
+    "main_image_position": [
+      216,
+      270
+    ]
+  },
+  "canvas_width": 1080,
+  "canvas_height": 1080,
+  "platform": "instagram_post",
+  "aspect_ratio": "1:1"
 }

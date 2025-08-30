@@ -1,130 +1,343 @@
-# Social Image Generator
+# Enhanced Social Media Image Generator
 
-A programmatic social media image generator that creates Instagram-friendly posts with Farsi text support, decorative coat graphics, and multiple layout variations.
+A professional-grade Python library for generating high-quality social media images with AI-powered background removal, dynamic layout positioning, and multi-language text support.
 
-## Features
+## 🚀 Features
 
-- 🎨 **Four Layout Variations**: Hero, Split, Top-heavy, Bottom-heavy
-- 🔤 **Farsi Text Support**: Proper right-to-left text rendering
-- 🧥 **Decorative Elements**: Colorful coat graphics with hangers
-- 🖼️ **Custom Backgrounds**: Tinted abstract patterns
-- ⚙️ **Configurable**: Colors, fonts, sizes, and spacing
-- 🚀 **Dual Implementation**: Python (Pillow) and Node.js (HTML-to-image)
+- **🤖 AI-Powered Background Removal**: Uses rembg with ONNX Runtime for professional background removal
+- **🎨 Dynamic Layout System**: Automatically adapts to content size and available space
+- **🌍 Multi-Language Support**: Full support for English, Arabic, and Farsi text with proper reshaping
+- **📐 Professional Typography**: Custom fonts with background panels and text shadows
+- **🔄 Aspect Ratio Preservation**: Maintains original image proportions
+- **🎯 Collision Avoidance**: Smart positioning to prevent element overlap
+- **📱 Platform Optimization**: Pre-configured settings for Instagram, Facebook, Twitter, etc.
+- **🐳 Docker Ready**: Complete containerization for easy deployment
 
-## Quick Start
+## 📦 Installation
 
-### Python Implementation (Recommended)
+### Option 1: Docker (Recommended)
 
-1. **Activate virtual environment:**
-   ```bash
-   source venv/bin/activate
-   ```
+```bash
+# Clone the repository
+git clone <repository-url>
+cd social-image-generator
 
-2. **Run the generator:**
-   ```bash
-   python src/social_image_generator.py
-   ```
+# Build and run with Docker
+docker-compose up --build
+```
 
-3. **Run tests:**
-   ```bash
-   python tests/test_generator.py
-   ```
+### Option 2: Local Installation
 
-### Node.js Alternative
+```bash
+# Install Python dependencies
+pip install -r requirements.txt
 
-1. **Install Node.js dependencies:**
-   ```bash
-   npm install
-   ```
+# Install rembg for AI background removal
+pip install rembg
 
-2. **Generate images:**
-   ```bash
-   npm start
-   ```
+# Optional: Install ONNX Runtime for better performance
+pip install onnxruntime
+```
 
-## Project Structure
+## 🛠️ API Reference
+
+### EnhancedSocialImageGenerator
+
+The main class for generating social media images.
+
+#### Constructor
+
+```python
+EnhancedSocialImageGenerator(config_path: str = None)
+```
+
+**Parameters:**
+- `config_path` (str, optional): Path to JSON configuration file. Uses default if None.
+
+**Example:**
+```python
+# Using default configuration
+generator = EnhancedSocialImageGenerator()
+
+# Using platform-specific configuration
+generator = EnhancedSocialImageGenerator('config/platforms/instagram_post.json')
+```
+
+#### generate_improved_hero_layout()
+
+Generate a professional hero layout with dynamic positioning.
+
+```python
+generate_improved_hero_layout(headline: str, subheadline: str, brand: str = None) -> PIL.Image.Image
+```
+
+**Parameters:**
+- `headline` (str): Main headline text. Supports English, Arabic, and Farsi.
+- `subheadline` (str): Secondary text below headline. Supports all languages.
+- `brand` (str, optional): Brand/company name. Ignored if brand logo is configured.
+
+**Returns:**
+- `PIL.Image.Image`: Generated image with RGBA mode for transparency.
+
+**Example:**
+```python
+generator = EnhancedSocialImageGenerator('config/platforms/instagram_post.json')
+
+img = generator.generate_improved_hero_layout(
+    headline="Premium Collection",
+    subheadline="Exceptional Quality & Design",
+    brand="Fashion Store"
+)
+
+img.save('output/social_post.png', 'PNG')
+```
+
+## 📁 Project Structure
 
 ```
 social-image-generator/
 ├── src/
-│   ├── social_image_generator.py    # Main Python generator
-│   ├── create_sample_background.py  # Background pattern creator
-│   └── nodejs_generator.js          # Node.js alternative
-├── assets/
-│   ├── fonts/                       # Font files
-│   ├── backgrounds/                 # Background patterns
-│   └── samples/                     # Sample images
+│   └── enhanced_social_generator.py    # Main generator class
 ├── config/
-│   ├── default_config.json          # Default configuration
-│   └── sample_content.json          # Sample content
-├── output/                          # Generated images
-├── tests/
-│   └── test_generator.py           # Test script
-└── requirements.txt                # Python dependencies
+│   ├── platforms/                      # Platform-specific configs
+│   │   ├── instagram_post.json
+│   │   ├── facebook_post.json
+│   │   ├── story.json
+│   │   └── ...
+│   └── fixed_user_images.json          # Default user configuration
+├── uploads/                            # User-uploaded images
+│   ├── main/                          # Main product images
+│   ├── background/                    # Background images
+│   └── watermark/                     # Brand logos/watermarks
+├── output/                            # Generated images
+├── assets/                            # Fonts and default assets
+├── tests/                             # Test files
+├── Dockerfile                         # Docker configuration
+├── docker-compose.yml                 # Docker Compose setup
+└── requirements.txt                   # Python dependencies
 ```
 
-## Configuration
+## ⚙️ Configuration
 
-Edit `config/default_config.json` to customize:
+### Platform Configurations
 
-- Canvas dimensions (default: 1080×1350)
-- Colors and fonts
-- Text sizes and positioning
-- Number of coats and their colors
+Pre-configured settings for different social media platforms:
 
-## Usage Examples
+```json
+{
+  "canvas_width": 1080,
+  "canvas_height": 1080,
+  "custom_images": {
+    "use_custom_images": true,
+    "main_image_path": "uploads/main/main.png",
+    "blueprint_image_path": "uploads/watermark/watermark.png",
+    "background_image_path": "uploads/background/bg.png",
+    "preserve_aspect_ratio": true,
+    "remove_background": true
+  }
+}
+```
 
-### Python API
+### Image Requirements
+
+- **Main Image**: Product/service image (recommended: 1000x1000px or larger)
+- **Brand Logo**: Company logo/icon (recommended: 200x200px, maintains aspect ratio)
+- **Background**: Canvas background image (matches platform dimensions)
+
+## 🎨 Usage Examples
+
+### Basic Usage
+
 ```python
-from src.social_image_generator import SocialImageGenerator
+from enhanced_social_generator import EnhancedSocialImageGenerator
 
-content = {
-    'headline': 'کت‌های زمستانی جدید',
-    'subheadline': 'مجموعه‌ای از بهترین طراحی‌ها',
-    'brand': 'Fashion Store'
+# Initialize generator
+generator = EnhancedSocialImageGenerator('config/platforms/instagram_post.json')
+
+# Generate image
+img = generator.generate_improved_hero_layout(
+    headline="New Collection Launch",
+    subheadline="Discover our latest premium designs",
+    brand="Your Brand Name"
+)
+
+# Save result
+img.save('output/instagram_post.png', 'PNG')
+```
+
+### Multi-Language Support
+
+```python
+# English
+img_en = generator.generate_improved_hero_layout(
+    "Premium Collection",
+    "Exceptional Quality & Design",
+    "Fashion Store"
+)
+
+# Arabic (automatically reshaped)
+img_ar = generator.generate_improved_hero_layout(
+    "المجموعة المتميزة",
+    "جودة وتصميم استثنائي",
+    "متجر الأزياء"
+)
+
+# Mixed content
+img_mixed = generator.generate_improved_hero_layout(
+    "Premium Collection مجموعة مميزة",
+    "Exceptional Quality جودة استثنائية",
+    "Fashion Store متجر الأزياء"
+)
+```
+
+### Custom Configuration
+
+```python
+# Custom canvas size
+custom_config = {
+    "canvas_width": 1200,
+    "canvas_height": 630,  # Facebook link dimensions
+    "custom_images": {
+        "use_custom_images": true,
+        "main_image_path": "uploads/main/product.jpg",
+        "blueprint_image_path": "uploads/watermark/logo.png",
+        "preserve_aspect_ratio": true,
+        "remove_background": true
+    }
 }
 
-generator = SocialImageGenerator()
-generator.generate_all_layouts(content, "my_post")
+# Save custom config
+with open('config/custom.json', 'w') as f:
+    json.dump(custom_config, f)
+
+# Use custom config
+generator = EnhancedSocialImageGenerator('config/custom.json')
 ```
 
-### Command Line
+## 🐳 Docker Deployment
+
+### Build and Run
+
 ```bash
-# Generate all layouts
-python src/social_image_generator.py
+# Build the image
+docker build -t social-image-generator .
 
-# Run tests
-python tests/test_generator.py
+# Run container
+docker run -v $(pwd)/output:/app/output social-image-generator
+
+# Or use Docker Compose
+docker-compose up --build
 ```
 
-## Layout Types
+### Docker Compose Services
 
-1. **Hero Layout**: Centered content with prominent text panel
-2. **Split Layout**: Text on left, coats on right
-3. **Top-heavy Layout**: Large text area at top, coats below
-4. **Bottom-heavy Layout**: Small text at top, large coat area below
+```yaml
+version: '3.8'
+services:
+  generator:
+    build: .
+    volumes:
+      - ./output:/app/output
+      - ./uploads:/app/uploads
+    environment:
+      - PYTHONPATH=/app/src
+```
 
-## Requirements
+## 🔧 Advanced Features
 
-- Python 3.7+
+### AI Background Removal
+
+The generator automatically uses rembg for professional background removal:
+
+```python
+# Background removal is automatic
+generator = EnhancedSocialImageGenerator('config/platforms/instagram_post.json')
+# Main image background is removed using AI
+```
+
+### Dynamic Layout System
+
+The layout automatically adapts to content:
+
+```python
+# Short text - compact layout
+img1 = generator.generate_improved_hero_layout("Sale", "50% Off", "Brand")
+
+# Long text - expanded layout
+img2 = generator.generate_improved_hero_layout(
+    "Exclusive Luxury Designer Collection with Premium Materials",
+    "Discover our premium fashion items with exceptional craftsmanship",
+    "Elite Fashion House International"
+)
+```
+
+### Font Management
+
+Custom fonts are automatically loaded:
+
+```python
+# Fonts are loaded from assets/fonts/
+# Supports: headline, subheadline, brand
+# Automatic fallback to system fonts
+```
+
+## 📋 Dependencies
+
+- Python 3.8+
 - Pillow (PIL)
-- arabic-reshaper
-- python-bidi
-- Node.js (for alternative implementation)
+- rembg (AI background removal)
+- arabic-reshaper (Arabic text support)
+- python-bidi (Bidirectional text)
+- numpy
+- scipy (optional, enhanced processing)
+- onnxruntime (optional, faster AI processing)
 
-## Customization
+## 🚨 Error Handling
 
-1. **Add new layouts**: Create new methods in `SocialImageGenerator` class
-2. **Modify backgrounds**: Replace files in `assets/backgrounds/`
-3. **Change fonts**: Add fonts to `assets/fonts/`
-4. **Adjust colors**: Edit `config/default_config.json`
+```python
+try:
+    generator = EnhancedSocialImageGenerator('config/platforms/instagram_post.json')
+    img = generator.generate_improved_hero_layout("Headline", "Subheadline", "Brand")
+    img.save('output/result.png', 'PNG')
+except FileNotFoundError:
+    print("Configuration or image file not found")
+except ValueError as e:
+    print(f"Invalid parameters: {e}")
+except Exception as e:
+    print(f"Generation failed: {e}")
+```
 
-## Troubleshooting
+## 📄 License
 
-- **Font issues**: Install Noto Sans Arabic or modify font paths
-- **Text not displaying**: Check font encoding and bidi support
-- **Background missing**: Run `python src/create_sample_background.py`
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-## License
+## 🤝 Contributing
 
-MIT License - feel free to use and modify for your projects!
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new features
+4. Ensure all tests pass
+5. Submit a pull request
+
+## 📞 Support
+
+For support and questions:
+- Create an issue on GitHub
+- Check the examples in the `tests/` directory
+- Review the configuration files in `config/`
+
+## 🔄 Changelog
+
+### Version 2.0.0
+- ✅ Added AI-powered background removal with rembg
+- ✅ Implemented dynamic layout system
+- ✅ Added multi-language text support
+- ✅ Docker containerization
+- ✅ Professional typography with panels
+- ✅ Brand logo integration with aspect ratio preservation
+
+### Version 1.0.0
+- ✅ Basic image generation
+- ✅ Font loading and text rendering
+- ✅ Platform-specific configurations
+- ✅ Custom image support

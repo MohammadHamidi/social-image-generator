@@ -1,48 +1,53 @@
-# Dockerfile for Social Image Generator
+# Enhanced Social Media Image Generator Dockerfile
 FROM python:3.11-slim
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    fontconfig \
-    libfreetype6-dev \
-    libjpeg-dev \
-    libpng-dev \
-    libwebp-dev \
-    zlib1g-dev \
-    && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Copy requirements first (for better caching)
-COPY requirements.txt .
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    libgthread-2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Install Python dependencies (including Flask)
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy font files to system fonts directory
-COPY assets/fonts/*.ttf /usr/share/fonts/truetype/custom/
+# Install additional ML/AI dependencies
+RUN pip install --no-cache-dir \
+    rembg \
+    onnxruntime \
+    scipy \
+    numpy
 
-# Update font cache
-RUN fc-cache -fv
+# Copy project files
+COPY src/ ./src/
+COPY config/ ./config/
+COPY assets/ ./assets/
+COPY social_image_api.py ./
+COPY run_server.py ./
 
-# Copy application code
-COPY . .
+# Create tests directory (optional)
+RUN mkdir -p tests
 
 # Create necessary directories
-RUN mkdir -p uploads/main uploads/watermark uploads/background generated output
+RUN mkdir -p uploads/main uploads/background uploads/watermark output
 
-# Set environment variables
+# Set Python path
 ENV PYTHONPATH=/app/src
-ENV FLASK_APP=social_image_api.py
-ENV FLASK_ENV=production
 
-# Expose port
-EXPOSE 5000
+# Create non-root user
+RUN useradd --create-home --shell /bin/bash appuser && chown -R appuser:appuser /app
+USER appuser
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:5000/health || exit 1
+    CMD python -c "from enhanced_social_generator import EnhancedSocialImageGenerator; print('OK')" || exit 1
 
-# Run the application
-CMD ["python", "-m", "flask", "run", "--host=0.0.0.0", "--port=5000"]
+# Default command - start Flask API server
+CMD ["python", "social_image_api.py"]
