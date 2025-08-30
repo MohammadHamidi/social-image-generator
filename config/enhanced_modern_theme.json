@@ -1,0 +1,98 @@
+{
+    "canvas_width": 1080,
+    "canvas_height": 1350,
+    "background": {
+        "type": "gradient",
+        "primary_color": [
+            67,
+            56,
+            202
+        ],
+        "secondary_color": [
+            147,
+            51,
+            234
+        ],
+        "gradient_direction": "diagonal"
+    },
+    "layout_colors": {
+        "hero": {
+            "headline_color": [
+                255,
+                255,
+                255
+            ],
+            "subheadline_color": [
+                229,
+                231,
+                235
+            ],
+            "brand_color": [
+                156,
+                163,
+                175
+            ],
+            "text_panel_bg": [
+                0,
+                0,
+                0,
+                120
+            ]
+        },
+        "split": {
+            "left_panel_bg": [
+                255,
+                255,
+                255,
+                150
+            ],
+            "right_panel_bg": [
+                0,
+                0,
+                0,
+                100
+            ],
+            "headline_color": [
+                67,
+                56,
+                202
+            ],
+            "subheadline_color": [
+                75,
+                85,
+                99
+            ],
+            "brand_color": [
+                255,
+                255,
+                255
+            ]
+        }
+    },
+    "custom_images": {
+        "use_custom_images": true,
+        "remove_background": true,
+        "background_removal_method": "auto",
+        "main_image_size": [
+            600,
+            400
+        ],
+        "blueprint_image_size": [
+            200,
+            150
+        ],
+        "main_image_position": [
+            240,
+            450
+        ],
+        "blueprint_image_position": [
+            850,
+            200
+        ]
+    },
+    "fonts": {
+        "headline_size": 52,
+        "subheadline_size": 36,
+        "brand_size": 28
+    }
+}

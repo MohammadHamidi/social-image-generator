@@ -1,12 +1,32 @@
 {
     "canvas_width": 1080,
     "canvas_height": 1350,
-    "background_color": [255, 255, 255],
+    "background_color": [
+        255,
+        255,
+        255
+    ],
     "use_custom_images": true,
     "main_image_path": "assets/custom/main_section.png",
     "blueprint_image_path": "assets/custom/blueprint.png",
-    "main_image_size": [500, 500],
-    "blueprint_image_size": [178, 108],
-    "main_image_position": [290, 450],
-    "blueprint_image_position": [451, 300]
+    "main_image_size": [
+        500,
+        500
+    ],
+    "blueprint_image_size": [
+        178,
+        108
+    ],
+    "main_image_position": [
+        290,
+        450
+    ],
+    "blueprint_image_position": [
+        451,
+        300
+    ],
+    "remove_background": true,
+    "background_removal_method": "auto",
+    "edge_threshold": 50,
+    "color_tolerance": 30
 }

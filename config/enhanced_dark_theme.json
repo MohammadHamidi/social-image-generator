@@ -1,0 +1,99 @@
+{
+    "canvas_width": 1080,
+    "canvas_height": 1350,
+    "background": {
+        "type": "gradient",
+        "primary_color": [
+            17,
+            24,
+            39
+        ],
+        "secondary_color": [
+            31,
+            41,
+            55
+        ],
+        "gradient_direction": "vertical"
+    },
+    "layout_colors": {
+        "hero": {
+            "headline_color": [
+                255,
+                255,
+                255
+            ],
+            "subheadline_color": [
+                209,
+                213,
+                219
+            ],
+            "brand_color": [
+                34,
+                197,
+                94
+            ],
+            "text_panel_bg": [
+                55,
+                65,
+                81,
+                200
+            ]
+        },
+        "split": {
+            "left_panel_bg": [
+                255,
+                255,
+                255,
+                200
+            ],
+            "right_panel_bg": [
+                17,
+                24,
+                39,
+                150
+            ],
+            "headline_color": [
+                17,
+                24,
+                39
+            ],
+            "subheadline_color": [
+                55,
+                65,
+                81
+            ],
+            "brand_color": [
+                255,
+                255,
+                255
+            ]
+        }
+    },
+    "custom_images": {
+        "use_custom_images": true,
+        "remove_background": true,
+        "background_removal_method": "edge_detection",
+        "edge_threshold": 40,
+        "main_image_size": [
+            550,
+            450
+        ],
+        "blueprint_image_size": [
+            180,
+            120
+        ],
+        "main_image_position": [
+            265,
+            480
+        ],
+        "blueprint_image_position": [
+            800,
+            250
+        ]
+    },
+    "fonts": {
+        "headline_size": 48,
+        "subheadline_size": 32,
+        "brand_size": 24
+    }
+}

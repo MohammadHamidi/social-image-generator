@@ -1,12 +1,64 @@
-# Custom Images Integration
+# Enhanced Social Image Generator
 
-This guide explains how to use your own custom images instead of programmatically generated shapes and text in the Social Image Generator.
+This guide explains how to use the enhanced Social Image Generator with advanced background removal, custom images, and granular color control.
 
-## Overview
+## ✨ New Features
 
-The generator now supports two custom images:
+### 🖼️ **Background Removal**
+- **AI-powered removal** using rembg (automatic subject detection)
+- **Edge detection fallback** for when AI isn't available
+- **Color threshold removal** for solid backgrounds
+- **Configurable sensitivity** and methods
+
+### 🎨 **Advanced Color Control**
+- **Layout-specific color schemes** (hero, split, top-heavy, bottom-heavy)
+- **Multiple background types** (solid, gradient, pattern)
+- **Gradient directions** (horizontal, vertical, diagonal, radial)
+- **Individual text element colors** (headline, subheadline, brand)
+- **Panel opacity and colors** for perfect text readability
+
+### 🖼️ **Custom Images Integration**
 - **Main Section Image**: Replaces the programmatically generated coat shapes
 - **Blueprint/Watermark Image**: Adds a secondary image (like a logo, pattern, or watermark)
+- **Automatic background removal** for seamless integration
+- **Flexible positioning and sizing**
+
+## Quick Start
+
+### 1. Install Enhanced Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Run Demo
+
+```bash
+python demo_enhanced_features.py
+```
+
+### 3. Use Enhanced Generator
+
+```python
+from src.enhanced_social_generator import EnhancedSocialImageGenerator
+
+# Load with custom theme
+generator = EnhancedSocialImageGenerator("config/enhanced_modern_theme.json")
+
+content = {
+    'headline': 'کت‌های زمستانی جدید',
+    'subheadline': 'مجموعه‌ای از بهترین طراحی‌ها',
+    'brand': 'Fashion Store'
+}
+
+img = generator.generate_enhanced_hero_layout(
+    content['headline'],
+    content['subheadline'],
+    content['brand']
+)
+
+img.save('output/enhanced_social_post.png', 'PNG')
+```
 
 ## Setup Instructions
 
