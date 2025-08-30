@@ -241,10 +241,10 @@ class EnhancedSocialImageGenerator:
 
         self.fonts = {}
 
-        # Load fonts with priority system
+        # Load fonts with priority system - Use IRANYekan for all text elements
         self._load_font_category('headline', font_sets['arabic'], self.config['fonts']['headline_size'])
         self._load_font_category('subheadline', font_sets['arabic'], self.config['fonts']['subheadline_size'])
-        self._load_font_category('brand', font_sets['latin'], self.config['fonts']['brand_size'])
+        self._load_font_category('brand', font_sets['arabic'], self.config['fonts']['brand_size'])
 
         # Ensure all fonts are loaded (fallback to default if needed)
         for font_name in ['headline', 'subheadline', 'brand']:
