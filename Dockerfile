@@ -27,13 +27,11 @@ RUN pip install --no-cache-dir \
 
 # Copy project files
 COPY src/ ./src/
-COPY config/ ./config/
 COPY assets/ ./assets/
 COPY social_image_api.py ./
 COPY run_server.py ./
 
-# Create tests directory (optional)
-RUN mkdir -p tests
+# Create necessary directories only
 
 # Create necessary directories
 RUN mkdir -p uploads/main uploads/background uploads/watermark output
@@ -47,7 +45,7 @@ USER appuser
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "from enhanced_social_generator import EnhancedSocialImageGenerator; print('OK')" || exit 1
+    CMD python -c "from src.enhanced_social_generator import EnhancedSocialImageGenerator; generator = EnhancedSocialImageGenerator(); print('OK')" || exit 1
 
 # Default command - start Flask API server
 CMD ["python", "social_image_api.py"]

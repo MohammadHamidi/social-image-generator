@@ -1484,29 +1484,29 @@ class EnhancedSocialImageGenerator:
                            .get('overlays', {})
                            .get('text_background', [0, 0, 0, 180]))
 
-        # 1. Headline - positioned at top with background panel
+        # 1. Headline - positioned at top without background panel
         headline_y = 150
-        self._draw_text_with_panel(
-            img, headline, 'headline',
+        self._draw_enhanced_text(
+            img, headline, self.fonts['headline'],
             (self.config['canvas_width'] // 2, headline_y),
-            primary_color, panel_color, padding=25, corner_radius=15
+            primary_color, centered=True, add_shadow=True
         )
 
-        # 2. Subheadline - positioned below headline with background panel
+        # 2. Subheadline - positioned below headline without background panel
         subheadline_y = 220
-        self._draw_text_with_panel(
-            img, subheadline, 'subheadline',
+        self._draw_enhanced_text(
+            img, subheadline, self.fonts['subheadline'],
             (self.config['canvas_width'] // 2, subheadline_y),
-            secondary_color, panel_color, padding=20, corner_radius=12
+            secondary_color, centered=True, add_shadow=True
         )
 
-        # 3. Brand - positioned at bottom with safe area
+        # 3. Brand - positioned at bottom with safe area without background panel
         if brand:
             brand_y = self.config['canvas_height'] - 100  # Safe area from bottom
-            self._draw_text_with_panel(
-                img, brand, 'brand',
+            self._draw_enhanced_text(
+                img, brand, self.fonts['brand'],
                 (self.config['canvas_width'] // 2, brand_y),
-                muted_color, panel_color, padding=15, corner_radius=8
+                muted_color, centered=True, add_shadow=True
             )
 
         return img
@@ -1598,22 +1598,28 @@ class EnhancedSocialImageGenerator:
                                    text_color, 
                                    centered=True if not is_arabic else False,
                                    add_shadow=True)
-        
-        # Brand at bottom with safe area
-        if brand:
+
+        # Brand at bottom with safe area - only show if no logo present
+        use_custom_images = (
+            self.config.get('use_custom_images', False) or
+            self.config.get('custom_images', {}).get('use_custom_images', False)
+        )
+        brand_text_present = not self.blueprint_image if use_custom_images else True
+
+        if brand and brand_text_present:
             brand_font_size = self._get_font_size('brand')
             try:
                 brand_font = ImageFont.truetype(self.fonts['brand'].path, brand_font_size)
             except:
                 brand_font = self.fonts['brand']
-            
+
             brand_y = self.config['canvas_height'] - safe_margins['bottom']
             brand_color = tuple(self.config.get('design_system', {}).get('colors', {}).get('text', {}).get('muted', [148, 163, 184]))
-            
+
             self._draw_enhanced_text(img, brand, brand_font,
                                    (self.config['canvas_width'] // 2, brand_y),
                                    brand_color, centered=True, add_shadow=True)
-        
+
         return img
 
     def generate_article_layout(self, title: str, body: str, brand: str = None) -> Image.Image:
@@ -1996,24 +2002,24 @@ class EnhancedSocialImageGenerator:
 
         # DYNAMIC TEXT POSITIONING WITH COLLISION AVOIDANCE
 
-        # 1. Headline - Dynamic position in header zone
+        # 1. Headline - Dynamic position in header zone without panel
         headline_pos = layout_info['headline']
         headline_color = (255, 255, 255)  # White text
 
-        self._draw_text_with_panel(
-            img, headline, 'headline',
+        self._draw_enhanced_text(
+            img, headline, self.fonts['headline'],
             (headline_pos['x'], headline_pos['y']),
-            headline_color, (0, 0, 0, 180), 25, 15
+            headline_color, centered=True, add_shadow=True
         )
 
-        # 2. Subheadline - Dynamic position below headline
+        # 2. Subheadline - Dynamic position below headline without panel
         subheadline_pos = layout_info['subheadline']
         subheadline_color = (230, 230, 230)  # Light gray
 
-        self._draw_text_with_panel(
-            img, subheadline, 'subheadline',
+        self._draw_enhanced_text(
+            img, subheadline, self.fonts['subheadline'],
             (subheadline_pos['x'], subheadline_pos['y']),
-            subheadline_color, (0, 0, 0, 150), 20, 12
+            subheadline_color, centered=True, add_shadow=True
         )
 
         # 3. Brand - Dynamic position in footer zone with collision avoidance
@@ -2022,10 +2028,10 @@ class EnhancedSocialImageGenerator:
             brand_pos = layout_info['brand']
             brand_color = (200, 200, 200)  # Muted color
 
-            self._draw_text_with_panel(
-                img, brand, 'brand',
+            self._draw_enhanced_text(
+                img, brand, self.fonts['brand'],
                 (brand_pos['x'], brand_pos['y']),
-                brand_color, (0, 0, 0, 120), 15, 8
+                brand_color, centered=True, add_shadow=True
             )
 
         return img
