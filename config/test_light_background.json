@@ -1,0 +1,43 @@
+{
+  "canvas_width": 1080,
+  "canvas_height": 1350,
+  "design_system": {
+    "grid": {
+      "max_text_width": 780,
+      "safe_area_bottom": 64
+    },
+    "typography": {
+      "scale": {
+        "h1": 72,
+        "body": 32,
+        "caption": 24
+      }
+    },
+    "colors": {
+      "text": {
+        "primary": [
+          255,
+          255,
+          255
+        ]
+      }
+    },
+    "overlays": {
+      "dark_scrim": [
+        0,
+        0,
+        0,
+        179
+      ]
+    }
+  },
+  "background": {
+    "type": "solid",
+    "primary_color": [
+      240,
+      240,
+      240
+    ],
+    "noise_opacity": 0
+  }
+}

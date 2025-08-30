@@ -1,0 +1,49 @@
+{
+  "canvas_width": 1080,
+  "canvas_height": 1350,
+  "design_system": {
+    "grid": {
+      "max_text_width": 780,
+      "safe_area_bottom": 64
+    },
+    "typography": {
+      "scale": {
+        "h1": 72,
+        "body": 32,
+        "caption": 24
+      }
+    },
+    "colors": {
+      "text": {
+        "primary": [
+          255,
+          255,
+          255
+        ]
+      }
+    },
+    "overlays": {
+      "medium_scrim": [
+        0,
+        0,
+        0,
+        128
+      ]
+    }
+  },
+  "background": {
+    "type": "gradient",
+    "primary_color": [
+      120,
+      50,
+      200
+    ],
+    "secondary_color": [
+      200,
+      50,
+      120
+    ],
+    "gradient_direction": "diagonal",
+    "noise_opacity": 0.02
+  }
+}

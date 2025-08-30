@@ -1,0 +1,39 @@
+{
+    "quote_content": {
+        "quote": "Success is not final, failure is not fatal: it is the courage to continue that counts.",
+        "author": "Winston Churchill",
+        "brand": "Inspiration Daily"
+    },
+    
+    "article_content": {
+        "title": "The Future of Technology",
+        "body": "As we advance into the digital age, artificial intelligence and machine learning are transforming how we work, live, and interact. These technologies promise to solve complex problems while creating new opportunities for innovation and growth in every industry.",
+        "brand": "Tech Insights"
+    },
+    
+    "announcement_content": {
+        "title": "New Product Launch",
+        "description": "We're excited to announce our latest innovation that will revolutionize your workflow and boost productivity.",
+        "cta": "Learn More",
+        "brand": "Innovation Co."
+    },
+    
+    "list_content": {
+        "title": "5 Tips for Better Design",
+        "items": [
+            "Keep it simple and clean",
+            "Use consistent typography",
+            "Choose a limited color palette",
+            "Focus on user experience",
+            "Test with real users"
+        ],
+        "brand": "Design Studio"
+    },
+    
+    "testimonial_content": {
+        "quote": "This product has completely transformed our business operations. The results exceeded our expectations in every way.",
+        "person_name": "Sarah Johnson",
+        "person_title": "CEO, Tech Startup",
+        "brand": "Product Reviews"
+    }
+}

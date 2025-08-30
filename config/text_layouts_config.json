@@ -1,0 +1,73 @@
+{
+    "canvas_width": 1080,
+    "canvas_height": 1350,
+    
+    "background": {
+        "type": "gradient",
+        "primary_color": [45, 55, 72],
+        "secondary_color": [68, 90, 120],
+        "gradient_direction": "diagonal"
+    },
+
+    "fonts": {
+        "headline_size": 48,
+        "subheadline_size": 32,
+        "brand_size": 24
+    },
+
+    "text_layouts": {
+        "quote": {
+            "quote_font_size": 42,
+            "quote_color": [255, 255, 255],
+            "author_color": [200, 200, 200],
+            "margin": 80,
+            "line_spacing": 15
+        },
+        "article": {
+            "title_font_size": 48,
+            "body_font_size": 28,
+            "title_color": [255, 255, 255],
+            "body_color": [230, 230, 230],
+            "margin": 60,
+            "title_line_spacing": 12,
+            "body_line_spacing": 18,
+            "justify_body": true
+        },
+        "announcement": {
+            "title_font_size": 52,
+            "desc_font_size": 32,
+            "cta_font_size": 32,
+            "title_color": [255, 255, 255],
+            "desc_color": [220, 220, 220],
+            "cta_bg_color": [255, 255, 255, 200],
+            "cta_text_color": [50, 50, 50],
+            "margin": 70,
+            "cta_padding": 25,
+            "cta_radius": 15
+        },
+        "list": {
+            "title_font_size": 48,
+            "item_font_size": 30,
+            "title_color": [255, 255, 255],
+            "item_color": [230, 230, 230],
+            "bullet_color": [255, 255, 255],
+            "margin": 80,
+            "item_spacing": 25
+        },
+        "testimonial": {
+            "quote_font_size": 36,
+            "name_font_size": 32,
+            "title_font_size": 24,
+            "quote_color": [255, 255, 255],
+            "name_color": [255, 255, 255],
+            "title_color": [200, 200, 200],
+            "margin": 70,
+            "line_spacing": 18
+        }
+    },
+
+    "brand_position": {
+        "y_offset": 100,
+        "color": [255, 255, 255]
+    }
+}

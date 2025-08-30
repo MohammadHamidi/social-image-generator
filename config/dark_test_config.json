@@ -1,0 +1,23 @@
+{
+  "canvas_width": 1080,
+  "canvas_height": 1350,
+  "background": {
+    "type": "gradient",
+    "primary_color": [
+      20,
+      30,
+      40
+    ],
+    "secondary_color": [
+      40,
+      50,
+      60
+    ],
+    "gradient_direction": "diagonal"
+  },
+  "fonts": {
+    "headline_size": 52,
+    "subheadline_size": 36,
+    "brand_size": 28
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "canvas_width": 1080,
+  "canvas_height": 1350,
+  "background": {
+    "type": "solid",
+    "primary_color": [
+      255,
+      255,
+      255
+    ]
+  },
+  "custom_images": {
+    "use_custom_images": true,
+    "main_image_path": "uploads/main/20250830_182043_d0b48f1b.png",
+    "blueprint_image_path": "uploads/watermark/20250830_175320_97902217.png",
+    "main_image_size": [
+      400,
+      400
+    ],
+    "blueprint_image_size": [
+      150,
+      150
+    ],
+    "main_image_position": [
+      340,
+      500
+    ],
+    "blueprint_image_position": [
+      465,
+      200
+    ],
+    "remove_background": true,
+    "background_image_path": "uploads/background/20250830_182851_027497cd.png"
+  }
+}
