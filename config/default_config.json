@@ -1,0 +1,45 @@
+{
+    "canvas_width": 1080,
+    "canvas_height": 1350,
+    "background_color": [
+        255,
+        255,
+        255
+    ],
+    "coat_colors": [
+        "#FF6B6B",
+        "#4ECDC4",
+        "#45B7D1",
+        "#96CEB4",
+        "#FFEAA7"
+    ],
+    "coat_count": 5,
+    "font_size_headline": 48,
+    "font_size_subheadline": 32,
+    "brand_font_size": 24,
+    "text_color": [
+        255,
+        255,
+        255
+    ],
+    "panel_opacity": 180,
+    "use_custom_images": false,
+    "main_image_path": "assets/custom/main_section.png",
+    "blueprint_image_path": "assets/custom/blueprint.png",
+    "main_image_size": [
+        500,
+        500
+    ],
+    "blueprint_image_size": [
+        178,
+        108
+    ],
+    "main_image_position": [
+        290,
+        450
+    ],
+    "blueprint_image_position": [
+        451,
+        300
+    ]
+}
