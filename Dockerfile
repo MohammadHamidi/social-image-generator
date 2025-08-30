@@ -29,7 +29,6 @@ RUN pip install --no-cache-dir \
 COPY src/ ./src/
 COPY assets/ ./assets/
 COPY social_image_api.py ./
-COPY run_server.py ./
 
 # Create necessary directories only
 

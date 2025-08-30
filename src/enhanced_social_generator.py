@@ -207,9 +207,12 @@ class EnhancedSocialImageGenerator:
         font_sets = {
             'arabic': {
                 'bundled': [
-                    os.path.join(font_dir, 'NotoSansArabic-Bold.ttf'),
+                    os.path.join(font_dir, 'IRANYekanBoldFaNum.ttf'),       # Primary Persian/Arabic font
+                    os.path.join(font_dir, 'IRANYekanMediumFaNum.ttf'),     # Secondary Persian/Arabic font
+                    os.path.join(font_dir, 'IRANYekanRegularFaNum.ttf'),    # Tertiary Persian/Arabic font
+                    os.path.join(font_dir, 'NotoSansArabic-Bold.ttf'),      # Fallback to NotoSans Arabic
                     os.path.join(font_dir, 'NotoSansArabic-Regular.ttf'),
-                    os.path.join(font_dir, 'NotoSans-Bold.ttf'),  # Fallback to Latin
+                    os.path.join(font_dir, 'NotoSans-Bold.ttf'),            # Fallback to Latin
                     os.path.join(font_dir, 'NotoSans-Regular.ttf')
                 ],
                 'system': [
@@ -709,14 +712,23 @@ class EnhancedSocialImageGenerator:
 
         if font_type in ['headline', 'subheadline']:
             if is_arabic:
-                # Use Arabic font for Arabic text
-                arabic_font_path = os.path.join(font_dir, 'NotoSansArabic-Bold.ttf')
-                if os.path.exists(arabic_font_path):
-                    try:
-                        font_size = self.config['fonts'][f'{font_type}_size']
-                        return ImageFont.truetype(arabic_font_path, font_size)
-                    except:
-                        pass
+                # Use IRANYekan fonts for Arabic/Persian text with priority
+                font_priority = [
+                    'IRANYekanBoldFaNum.ttf' if font_type == 'headline' else 'IRANYekanMediumFaNum.ttf',  # Bold for headlines, Medium for subheadlines
+                    'IRANYekanRegularFaNum.ttf',    # Regular as secondary
+                    'NotoSansArabic-Bold.ttf',      # NotoSans as fallback
+                    'NotoSansArabic-Regular.ttf'
+                ]
+
+                font_size = self.config['fonts'][f'{font_type}_size']
+
+                for font_name in font_priority:
+                    arabic_font_path = os.path.join(font_dir, font_name)
+                    if os.path.exists(arabic_font_path):
+                        try:
+                            return ImageFont.truetype(arabic_font_path, font_size)
+                        except:
+                            continue
 
             # Use Latin font for Latin text or as fallback
             latin_font_path = os.path.join(font_dir, 'NotoSans-Bold.ttf')
