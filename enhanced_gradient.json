@@ -1,0 +1,13 @@
+{
+  "width": 1080,
+  "height": 1350,
+  "colors": ["#FF6B6B", "#4ECDC4"],
+  "gradient_type": "linear",
+  "direction": "vertical",
+  "generate_harmony": true,
+  "harmony_type": "triadic",
+  "add_noise": true,
+  "noise_intensity": 0.03,
+  "use_hsl_interpolation": true,
+  "quality": 95
+}

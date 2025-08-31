@@ -1,0 +1,10 @@
+{
+  "width": 800,
+  "height": 600,
+  "colors": ["#FF6B6B", "#4ECDC4"],
+  "gradient_type": "linear",
+  "direction": "vertical",
+  "use_hsl_interpolation": true,
+  "add_noise": false,
+  "generate_harmony": false
+}

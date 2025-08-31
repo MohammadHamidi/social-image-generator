@@ -14,7 +14,10 @@ import json
 from datetime import datetime
 import sys
 import io
-from PIL import Image
+from PIL import Image, ImageDraw
+import numpy as np
+import colorsys
+import random
 import stat
 
 # Add src to path for imports
@@ -870,6 +873,418 @@ def generate_all_text_layouts():
             'error': str(e)
         }), 500
 
+def hex_to_rgb(hex_color):
+    """Convert hex color to RGB tuple"""
+    hex_color = hex_color.lstrip('#')
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+
+def rgb_to_hsl(rgb):
+    """Convert RGB to HSL"""
+    r, g, b = [x/255.0 for x in rgb]
+    h, l, s = colorsys.rgb_to_hls(r, g, b)
+    return (h, s, l)
+
+def hsl_to_rgb(hsl):
+    """Convert HSL to RGB"""
+    h, s, l = hsl
+    r, g, b = colorsys.hls_to_rgb(h, l, s)
+    return (int(r*255), int(g*255), int(b*255))
+
+def interpolate_hsl(color1, color2, factor):
+    """Interpolate between two colors in HSL space for smoother transitions"""
+    hsl1 = rgb_to_hsl(color1)
+    hsl2 = rgb_to_hsl(color2)
+
+    # Handle hue wraparound
+    h1, s1, l1 = hsl1
+    h2, s2, l2 = hsl2
+
+    if abs(h1 - h2) > 0.5:
+        if h1 < h2:
+            h1 = h1 + 1.0
+        else:
+            h2 = h2 + 1.0
+
+    h = h1 + (h2 - h1) * factor
+    s = s1 + (s2 - s1) * factor
+    l = l1 + (l2 - l1) * factor
+
+    # Handle hue wraparound
+    if h >= 1:
+        h = h - 1.0
+    elif h < 0:
+        h = h + 1.0
+
+    return hsl_to_rgb((h, s, l))
+
+def add_subtle_noise(img, intensity=0.05):
+    """Add subtle noise to make gradients more interesting"""
+    img_array = np.array(img)
+
+    # Generate noise
+    noise = np.random.normal(0, intensity * 255, img_array.shape)
+
+    # Add noise to each channel
+    for i in range(3):  # RGB channels
+        img_array[:, :, i] = np.clip(img_array[:, :, i] + noise[:, :, i], 0, 255)
+
+    return Image.fromarray(img_array.astype('uint8'))
+
+def generate_color_harmony(base_color, harmony_type="complementary"):
+    """Generate harmonious color combinations"""
+    if isinstance(base_color, str):
+        rgb = hex_to_rgb(base_color)
+    else:
+        rgb = tuple(base_color)
+
+    hsl = rgb_to_hsl(rgb)
+    h, s, l = hsl
+
+    harmonies = {
+        "complementary": [hsl, ((h + 0.5) % 1, hsl[1], hsl[2])],
+        "triadic": [hsl, ((h + 0.33) % 1, hsl[1], hsl[2]), ((h + 0.67) % 1, hsl[1], hsl[2])],
+        "analogous": [hsl, ((h + 0.083) % 1, hsl[1], hsl[2]), ((h - 0.083) % 1, hsl[1], hsl[2])],
+        "split_complementary": [hsl, ((h + 0.5 + 0.083) % 1, hsl[1], hsl[2]), ((h + 0.5 - 0.083) % 1, hsl[1], hsl[2])]
+    }
+
+    if harmony_type not in harmonies:
+        harmony_type = "complementary"
+
+    hsl_colors = harmonies[harmony_type]
+    rgb_colors = []
+
+    for hsl_color in hsl_colors:
+        rgb_colors.append(hsl_to_rgb(hsl_color))
+
+    return rgb_colors
+
+def apply_dithering(img):
+    """Apply Floyd-Steinberg dithering for smoother gradients"""
+    img_array = np.array(img)
+
+    # Simple ordered dithering pattern
+    dither_matrix = np.array([
+        [0, 8, 2, 10],
+        [12, 4, 14, 6],
+        [3, 11, 1, 9],
+        [15, 7, 13, 5]
+    ]) / 16.0
+
+    height, width = img_array.shape[:2]
+    dither_height, dither_width = dither_matrix.shape
+
+    for y in range(height):
+        for x in range(width):
+            old_pixel = img_array[y, x].astype(float) / 255.0
+            dither_value = dither_matrix[y % dither_height, x % dither_width]
+
+            new_pixel = np.where(old_pixel > dither_value, 1.0, 0.0)
+            img_array[y, x] = (new_pixel * 255).astype(np.uint8)
+
+    return Image.fromarray(img_array)
+
+@app.route('/generate_gradient', methods=['POST'])
+def generate_gradient():
+    """Generate gradient image endpoint with comprehensive error handling"""
+    try:
+        # Get JSON data
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+
+        # Extract parameters
+        width = data.get('width', 1080)
+        height = data.get('height', 1350)
+        colors = data.get('colors', ['#FF6B6B', '#4ECDC4'])
+        gradient_type = data.get('gradient_type', 'linear')  # linear, radial, diagonal
+        direction = data.get('direction', 'vertical')  # vertical, horizontal, diagonal
+
+        # Enhanced features
+        use_hsl_interpolation = data.get('use_hsl_interpolation', True)  # Better color transitions
+        add_noise = data.get('add_noise', True)  # Subtle texture
+        noise_intensity = data.get('noise_intensity', 0.02)  # Noise strength (0-1)
+        apply_dither = data.get('apply_dither', False)  # Dithering for smoothness
+        generate_harmony = data.get('generate_harmony', False)  # Auto-generate color harmony
+        harmony_type = data.get('harmony_type', 'complementary')  # complementary, triadic, analogous
+        quality = data.get('quality', 95)  # PNG quality (1-100)
+
+        # Validate parameters
+        if not isinstance(width, int) or not isinstance(height, int):
+            return jsonify({'error': 'Width and height must be integers'}), 400
+
+        if width < 100 or width > 4096 or height < 100 or height > 4096:
+            return jsonify({'error': 'Width and height must be between 100 and 4096 pixels'}), 400
+
+        if not isinstance(colors, list) or len(colors) < 2:
+            return jsonify({'error': 'Colors must be an array with at least 2 color values'}), 400
+
+        if gradient_type not in ['linear', 'radial', 'diagonal']:
+            return jsonify({'error': 'gradient_type must be one of: linear, radial, diagonal'}), 400
+
+        if direction not in ['vertical', 'horizontal', 'diagonal']:
+            return jsonify({'error': 'direction must be one of: vertical, horizontal, diagonal'}), 400
+
+        # Convert color strings to RGB tuples
+        rgb_colors = []
+        for color in colors:
+            try:
+                # Handle hex colors
+                if isinstance(color, str) and color.startswith('#'):
+                    rgb_colors.append(tuple(int(color[i:i+2], 16) for i in (1, 3, 5)))
+                # Handle RGB arrays
+                elif isinstance(color, list) and len(color) == 3:
+                    rgb_colors.append(tuple(color))
+                else:
+                    return jsonify({'error': f'Invalid color format: {color}. Use hex (#RRGGBB) or RGB arrays [r,g,b]'}), 400
+            except (ValueError, IndexError):
+                return jsonify({'error': f'Invalid color format: {color}'}), 400
+
+        # Generate color harmony if requested
+        if generate_harmony and len(rgb_colors) >= 1:
+            harmony_colors = generate_color_harmony(rgb_colors[0], harmony_type)
+            rgb_colors = harmony_colors
+            colors = [f'#{r:02x}{g:02x}{b:02x}' for r, g, b in rgb_colors]
+
+        # Create gradient image
+        img = Image.new('RGB', (width, height), rgb_colors[0])
+        draw = ImageDraw.Draw(img)
+
+        # Generate gradient based on type
+        if gradient_type == 'linear':
+            if direction == 'vertical':
+                # Vertical linear gradient with enhanced interpolation
+                for y in range(height):
+                    ratio = y / (height - 1)
+                    if len(rgb_colors) == 2:
+                        if use_hsl_interpolation:
+                            r, g, b = interpolate_hsl(rgb_colors[0], rgb_colors[1], ratio)
+                        else:
+                            r = int(rgb_colors[0][0] + (rgb_colors[1][0] - rgb_colors[0][0]) * ratio)
+                            g = int(rgb_colors[0][1] + (rgb_colors[1][1] - rgb_colors[0][1]) * ratio)
+                            b = int(rgb_colors[0][2] + (rgb_colors[1][2] - rgb_colors[0][2]) * ratio)
+                        draw.line([(0, y), (width, y)], fill=(r, g, b))
+                    else:
+                        # Multi-color gradient with enhanced interpolation
+                        segment_height = height / (len(rgb_colors) - 1)
+                        segment_idx = int(y / segment_height)
+                        if segment_idx >= len(rgb_colors) - 1:
+                            segment_idx = len(rgb_colors) - 2
+                        local_ratio = (y % segment_height) / segment_height
+
+                        if use_hsl_interpolation:
+                            r, g, b = interpolate_hsl(rgb_colors[segment_idx], rgb_colors[segment_idx + 1], local_ratio)
+                        else:
+                            r = int(rgb_colors[segment_idx][0] + (rgb_colors[segment_idx + 1][0] - rgb_colors[segment_idx][0]) * local_ratio)
+                            g = int(rgb_colors[segment_idx][1] + (rgb_colors[segment_idx + 1][1] - rgb_colors[segment_idx][1]) * local_ratio)
+                            b = int(rgb_colors[segment_idx][2] + (rgb_colors[segment_idx + 1][2] - rgb_colors[segment_idx][2]) * local_ratio)
+                        draw.line([(0, y), (width, y)], fill=(r, g, b))
+
+            elif direction == 'horizontal':
+                # Horizontal linear gradient with enhanced interpolation
+                for x in range(width):
+                    ratio = x / (width - 1)
+                    if len(rgb_colors) == 2:
+                        if use_hsl_interpolation:
+                            r, g, b = interpolate_hsl(rgb_colors[0], rgb_colors[1], ratio)
+                        else:
+                            r = int(rgb_colors[0][0] + (rgb_colors[1][0] - rgb_colors[0][0]) * ratio)
+                            g = int(rgb_colors[0][1] + (rgb_colors[1][1] - rgb_colors[0][1]) * ratio)
+                            b = int(rgb_colors[0][2] + (rgb_colors[1][2] - rgb_colors[0][2]) * ratio)
+                        draw.line([(x, 0), (x, height)], fill=(r, g, b))
+                    else:
+                        # Multi-color gradient with enhanced interpolation
+                        segment_width = width / (len(rgb_colors) - 1)
+                        segment_idx = int(x / segment_width)
+                        if segment_idx >= len(rgb_colors) - 1:
+                            segment_idx = len(rgb_colors) - 2
+                        local_ratio = (x % segment_width) / segment_width
+
+                        if use_hsl_interpolation:
+                            r, g, b = interpolate_hsl(rgb_colors[segment_idx], rgb_colors[segment_idx + 1], local_ratio)
+                        else:
+                            r = int(rgb_colors[segment_idx][0] + (rgb_colors[segment_idx + 1][0] - rgb_colors[segment_idx][0]) * local_ratio)
+                            g = int(rgb_colors[segment_idx][1] + (rgb_colors[segment_idx + 1][1] - rgb_colors[segment_idx][1]) * local_ratio)
+                            b = int(rgb_colors[segment_idx][2] + (rgb_colors[segment_idx + 1][2] - rgb_colors[segment_idx][2]) * local_ratio)
+                        draw.line([(x, 0), (x, height)], fill=(r, g, b))
+
+            else:  # diagonal
+                # Diagonal linear gradient
+                max_dimension = max(width, height)
+                for y in range(height):
+                    for x in range(width):
+                        ratio = (x + y) / (2 * max_dimension - 2)
+                        ratio = min(ratio, 1.0)  # Clamp to [0, 1]
+                        if len(rgb_colors) == 2:
+                            r = int(rgb_colors[0][0] + (rgb_colors[1][0] - rgb_colors[0][0]) * ratio)
+                            g = int(rgb_colors[0][1] + (rgb_colors[1][1] - rgb_colors[0][1]) * ratio)
+                            b = int(rgb_colors[0][2] + (rgb_colors[1][2] - rgb_colors[0][2]) * ratio)
+                            img.putpixel((x, y), (r, g, b))
+                        else:
+                            # Multi-color gradient
+                            segment_ratio = ratio * (len(rgb_colors) - 1)
+                            segment_idx = int(segment_ratio)
+                            if segment_idx >= len(rgb_colors) - 1:
+                                segment_idx = len(rgb_colors) - 2
+                            local_ratio = segment_ratio - segment_idx
+                            r = int(rgb_colors[segment_idx][0] + (rgb_colors[segment_idx + 1][0] - rgb_colors[segment_idx][0]) * local_ratio)
+                            g = int(rgb_colors[segment_idx][1] + (rgb_colors[segment_idx + 1][1] - rgb_colors[segment_idx][1]) * local_ratio)
+                            b = int(rgb_colors[segment_idx][2] + (rgb_colors[segment_idx + 1][2] - rgb_colors[segment_idx][2]) * local_ratio)
+                            img.putpixel((x, y), (r, g, b))
+
+        elif gradient_type == 'radial':
+            # Radial gradient
+            center_x, center_y = width // 2, height // 2
+            max_distance = ((width // 2) ** 2 + (height // 2) ** 2) ** 0.5
+
+            for y in range(height):
+                for x in range(width):
+                    distance = ((x - center_x) ** 2 + (y - center_y) ** 2) ** 0.5
+                    ratio = min(distance / max_distance, 1.0)
+                    if len(rgb_colors) == 2:
+                        r = int(rgb_colors[0][0] + (rgb_colors[1][0] - rgb_colors[0][0]) * ratio)
+                        g = int(rgb_colors[0][1] + (rgb_colors[1][1] - rgb_colors[0][1]) * ratio)
+                        b = int(rgb_colors[0][2] + (rgb_colors[1][2] - rgb_colors[0][2]) * ratio)
+                        img.putpixel((x, y), (r, g, b))
+                    else:
+                        # Multi-color radial gradient
+                        segment_ratio = ratio * (len(rgb_colors) - 1)
+                        segment_idx = int(segment_ratio)
+                        if segment_idx >= len(rgb_colors) - 1:
+                            segment_idx = len(rgb_colors) - 2
+                        local_ratio = segment_ratio - segment_idx
+                        r = int(rgb_colors[segment_idx][0] + (rgb_colors[segment_idx + 1][0] - rgb_colors[segment_idx][0]) * local_ratio)
+                        g = int(rgb_colors[segment_idx][1] + (rgb_colors[segment_idx + 1][1] - rgb_colors[segment_idx][1]) * local_ratio)
+                        b = int(rgb_colors[segment_idx][2] + (rgb_colors[segment_idx + 1][2] - rgb_colors[segment_idx][2]) * local_ratio)
+                        img.putpixel((x, y), (r, g, b))
+
+        # Apply enhancement effects
+        if add_noise:
+            img = add_subtle_noise(img, noise_intensity)
+
+        if apply_dither:
+            img = apply_dithering(img)
+
+        # Save gradient image
+        output_filename = f"gradient_{uuid.uuid4().hex[:8]}.png"
+        output_filepath = os.path.join(app.config['GENERATED_FOLDER'], output_filename)
+
+        try:
+            img.save(output_filepath, 'PNG', quality=quality)
+        except Exception as e:
+            return jsonify({'error': f'Failed to save gradient image: {str(e)}'}), 500
+
+        # Generate download URL
+        download_url = url_for('generated_file', filename=output_filename, _external=True)
+
+        return jsonify({
+            'success': True,
+            'message': 'Gradient generated successfully',
+            'download_url': download_url,
+            'filename': output_filename,
+            'size': os.path.getsize(output_filepath),
+            'dimensions': {
+                'width': width,
+                'height': height
+            },
+            'gradient_config': {
+                'type': gradient_type,
+                'direction': direction,
+                'colors': colors,
+                'rgb_colors': rgb_colors
+            },
+            'enhancements': {
+                'hsl_interpolation': use_hsl_interpolation,
+                'noise_added': add_noise,
+                'noise_intensity': noise_intensity if add_noise else None,
+                'dither_applied': apply_dither,
+                'harmony_generated': generate_harmony,
+                'harmony_type': harmony_type if generate_harmony else None,
+                'quality': quality
+            },
+            'generated_at': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        print(f"Generate gradient error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Gradient generation failed: {str(e)}'}), 500
+
+@app.route('/gradient_info', methods=['GET'])
+def gradient_info():
+    """Get comprehensive information about gradient generation options"""
+    return jsonify({
+        'gradient_types': {
+            'linear': {
+                'description': 'Linear gradient with smooth color transitions',
+                'directions': ['vertical', 'horizontal', 'diagonal'],
+                'examples': [
+                    {'direction': 'vertical', 'description': 'Top to bottom gradient'},
+                    {'direction': 'horizontal', 'description': 'Left to right gradient'},
+                    {'direction': 'diagonal', 'description': 'Corner to corner gradient'}
+                ]
+            },
+            'radial': {
+                'description': 'Radial gradient emanating from center',
+                'directions': ['vertical'],
+                'examples': [
+                    {'direction': 'vertical', 'description': 'Circular gradient from center'}
+                ]
+            },
+            'diagonal': {
+                'description': 'Diagonal linear gradient',
+                'directions': ['diagonal'],
+                'examples': [
+                    {'direction': 'diagonal', 'description': '45-degree diagonal gradient'}
+                ]
+            }
+        },
+        'color_formats': [
+            'Hex colors: #FF6B6B, #4ECDC4, #45B7D1',
+            'RGB arrays: [255, 107, 107], [78, 205, 196], [69, 183, 209]'
+        ],
+        'parameters': {
+            'width': {'type': 'integer', 'min': 100, 'max': 4096, 'default': 1080},
+            'height': {'type': 'integer', 'min': 100, 'max': 4096, 'default': 1350},
+            'colors': {'type': 'array', 'min_items': 2, 'description': 'Array of color values'},
+            'gradient_type': {'type': 'string', 'options': ['linear', 'radial', 'diagonal'], 'default': 'linear'},
+            'direction': {'type': 'string', 'options': ['vertical', 'horizontal', 'diagonal'], 'default': 'vertical'}
+        },
+        'examples': {
+            'simple_vertical': {
+                'width': 1080,
+                'height': 1350,
+                'colors': ['#FF6B6B', '#4ECDC4'],
+                'gradient_type': 'linear',
+                'direction': 'vertical'
+            },
+            'multi_color_horizontal': {
+                'width': 1080,
+                'height': 1350,
+                'colors': ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FDCB6E'],
+                'gradient_type': 'linear',
+                'direction': 'horizontal'
+            },
+            'radial_gradient': {
+                'width': 1080,
+                'height': 1080,
+                'colors': ['#FFFFFF', '#FF6B6B'],
+                'gradient_type': 'radial',
+                'direction': 'vertical'
+            },
+            'diagonal_rgb': {
+                'width': 1080,
+                'height': 1350,
+                'colors': [[255, 107, 107], [78, 205, 196]],
+                'gradient_type': 'diagonal',
+                'direction': 'diagonal'
+            }
+        },
+        'usage': {
+            'curl_example': 'curl -X POST -H "Content-Type: application/json" -d \'{"width": 1080, "height": 1350, "colors": ["#FF6B6B", "#4ECDC4"], "gradient_type": "linear", "direction": "vertical"}\' http://localhost:5000/generate_gradient'
+        }
+    })
+
 @app.route('/text_layout_info', methods=['GET'])
 def text_layout_info():
     """Get comprehensive information about available text layout types and their content structure"""
@@ -952,13 +1367,15 @@ def not_found(error):
         'message': 'The requested endpoint does not exist',
         'available_endpoints': [
             'GET /',
-            'GET /health', 
+            'GET /health',
             'POST /upload/main',
             'POST /upload/watermark',
             'POST /upload/background',
+            'POST /generate_gradient',
             'POST /generate',
             'POST /generate_text',
             'POST /generate_all_text',
+            'GET /gradient_info',
             'GET /text_layout_info',
             'GET /files'
         ]
@@ -1004,9 +1421,11 @@ if __name__ == '__main__':
     print("   POST /upload/background - Upload background image")
     print()
     print("🎨 Generation Endpoints:")
+    print("   POST /generate_gradient - Generate gradient backgrounds")
     print("   POST /generate - Generate social media image")
     print("   POST /generate_text - Generate text-based layouts")
     print("   POST /generate_all_text - Generate all text layouts")
+    print("   GET /gradient_info - Gradient generation documentation")
     print("   GET /text_layout_info - Text layout documentation")
     print()
     print("🔍 Utility Endpoints:")

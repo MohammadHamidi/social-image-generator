@@ -1,0 +1,7 @@
+{
+  "width": 1080,
+  "height": 1350,
+  "colors": ["#FF6B6B", "#4ECDC4", "#45B7D1"],
+  "gradient_type": "linear",
+  "direction": "horizontal"
+}
