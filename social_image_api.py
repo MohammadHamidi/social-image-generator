@@ -1015,8 +1015,8 @@ def generate_gradient():
         if width < 100 or width > 4096 or height < 100 or height > 4096:
             return jsonify({'error': 'Width and height must be between 100 and 4096 pixels'}), 400
 
-        if not isinstance(colors, list) or len(colors) < 2:
-            return jsonify({'error': 'Colors must be an array with at least 2 color values'}), 400
+        if not isinstance(colors, list) or len(colors) < 1:
+            return jsonify({'error': 'Colors must be an array with at least 1 color value'}), 400
 
         if gradient_type not in ['linear', 'radial', 'diagonal']:
             return jsonify({'error': 'gradient_type must be one of: linear, radial, diagonal'}), 400
@@ -1041,9 +1041,20 @@ def generate_gradient():
 
         # Generate color harmony if requested
         if generate_harmony and len(rgb_colors) >= 1:
-            harmony_colors = generate_color_harmony(rgb_colors[0], harmony_type)
-            rgb_colors = harmony_colors
-            colors = [f'#{r:02x}{g:02x}{b:02x}' for r, g, b in rgb_colors]
+            base_color = rgb_colors[0] if len(rgb_colors) == 1 else rgb_colors
+            if len(rgb_colors) == 1:
+                harmony_colors = generate_color_harmony(base_color, harmony_type)
+                rgb_colors = harmony_colors
+                colors = [f'#{r:02x}{g:02x}{b:02x}' for r, g, b in rgb_colors]
+            else:
+                # If multiple colors provided, generate harmony from the first one
+                harmony_colors = generate_color_harmony(base_color, harmony_type)
+                rgb_colors = harmony_colors
+                colors = [f'#{r:02x}{g:02x}{b:02x}' for r, g, b in rgb_colors]
+
+        # Ensure we have at least 2 colors for gradient generation
+        if len(rgb_colors) < 2:
+            return jsonify({'error': 'At least 2 colors are required for gradient generation. Use generate_harmony=true for automatic color generation.'}), 400
 
         # Create gradient image
         img = Image.new('RGB', (width, height), rgb_colors[0])

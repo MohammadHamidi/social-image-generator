@@ -5,25 +5,26 @@ services:
     volumes:
       # Mount output directory for generated images
       - ./output:/app/output
-      # Mount uploads directory for user images  
+      # Mount uploads directory for user images
       - ./uploads:/app/uploads
+      # Mount generated directory for API-generated images
+      - ./generated:/app/generated
       # Mount config directory for custom configurations
       - ./config:/app/config
     environment:
       - PYTHONPATH=/app/src
       - PYTHONDONTWRITEBYTECODE=1
-      # Set user ID to match host user (optional)
-      - USER_ID=1000
-      - GROUP_ID=1000
+      # Disable Flask debug mode in production
+      - FLASK_ENV=production
     ports:
-      - "5001:5000" # Flask API server port
+      - "5000:5000" # Flask API server port (matches local setup)
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "python", "-c", "from enhanced_social_generator import EnhancedSocialImageGenerator; print('OK')" ]
+      test: [ "CMD", "python", "-c", "import flask; from src.enhanced_social_generator import EnhancedSocialImageGenerator; print('OK')" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
     networks:
       - social-image-network
     # Ensure container runs as correct user

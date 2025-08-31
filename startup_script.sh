@@ -8,22 +8,22 @@ echo "=============================================="
 create_directory() {
     local dir_path="$1"
     local dir_name="$2"
-    
+
     echo "📁 Checking directory: $dir_path"
-    
+
     if [ -d "$dir_path" ]; then
         echo "   ✅ Directory exists: $dir_path"
-        
+
         # Check if we can write to it
         if [ -w "$dir_path" ]; then
             echo "   ✅ Write permission OK: $dir_path"
         else
             echo "   ⚠️  No write permission: $dir_path"
             echo "   🔧 Attempting to fix permissions..."
-            
+
             # Try to fix permissions (will fail silently if not possible)
             chmod u+w "$dir_path" 2>/dev/null || true
-            
+
             # Check again
             if [ -w "$dir_path" ]; then
                 echo "   ✅ Permissions fixed: $dir_path"
@@ -36,6 +36,8 @@ create_directory() {
         echo "   📂 Creating directory: $dir_path"
         if mkdir -p "$dir_path" 2>/dev/null; then
             echo "   ✅ Created successfully: $dir_path"
+            # Ensure proper permissions on newly created directories
+            chmod u+w "$dir_path" 2>/dev/null || true
         else
             echo "   ❌ Failed to create: $dir_path"
             echo "   💡 Python will attempt to create this during runtime"
