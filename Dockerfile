@@ -25,22 +25,23 @@ RUN pip install --no-cache-dir \
     scipy \
     numpy
 
+# Create non-root user FIRST (before copying files)
+RUN useradd --create-home --shell /bin/bash --uid 1000 appuser
+
 # Copy project files
 COPY src/ ./src/
 COPY assets/ ./assets/
 COPY social_image_api.py ./
 
-# Create necessary directories only
+# Create directories as appuser and set proper permissions
+RUN mkdir -p uploads/main uploads/background uploads/watermark output generated && \
+    chown -R appuser:appuser /app
 
-# Create necessary directories
-RUN mkdir -p uploads/main uploads/background uploads/watermark output
+# Switch to non-root user
+USER appuser
 
 # Set Python path
 ENV PYTHONPATH=/app/src
-
-# Create non-root user
-RUN useradd --create-home --shell /bin/bash appuser && chown -R appuser:appuser /app
-USER appuser
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

@@ -5,13 +5,16 @@ services:
     volumes:
       # Mount output directory for generated images
       - ./output:/app/output
-      # Mount uploads directory for user images
+      # Mount uploads directory for user images  
       - ./uploads:/app/uploads
       # Mount config directory for custom configurations
       - ./config:/app/config
     environment:
       - PYTHONPATH=/app/src
       - PYTHONDONTWRITEBYTECODE=1
+      # Set user ID to match host user (optional)
+      - USER_ID=1000
+      - GROUP_ID=1000
     ports:
       - "5000:5000" # Flask API server port
     restart: unless-stopped
@@ -23,6 +26,8 @@ services:
       start_period: 40s
     networks:
       - social-image-network
+    # Ensure container runs as correct user
+    user: "1000:1000"
 
   # Development service with hot reload
   dev:
@@ -41,6 +46,7 @@ services:
       - dev
     networks:
       - social-image-network
+    user: "1000:1000"
 
   # Test service
   test:
@@ -57,6 +63,7 @@ services:
       - test
     networks:
       - social-image-network
+    user: "1000:1000"
 
 networks:
   social-image-network:
