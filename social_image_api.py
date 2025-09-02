@@ -31,6 +31,8 @@ CORS(app)  # Enable CORS for all routes
 UPLOAD_FOLDER = 'uploads'
 GENERATED_FOLDER = 'generated'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+# URL Configuration - Set to False to return relative paths instead of full URLs
+RETURN_FULL_URLS = False
 
 def safe_makedirs(path, exist_ok=True):
     """
@@ -81,6 +83,22 @@ def safe_makedirs(path, exist_ok=True):
     except Exception as e:
         print(f"❌ Failed to create directory {path}: {e}")
         return False
+
+def generate_url(endpoint, **kwargs):
+    """
+    Generate URL based on configuration setting.
+    
+    Args:
+        endpoint (str): Flask endpoint name
+        **kwargs: Arguments for url_for
+        
+    Returns:
+        str: Relative path or full URL based on RETURN_FULL_URLS setting
+    """
+    if RETURN_FULL_URLS:
+        return url_for(endpoint, _external=True, **kwargs)
+    else:
+        return url_for(endpoint, _external=False, **kwargs)
 
 def initialize_directories():
     """Initialize all required directories with proper error handling"""
@@ -209,61 +227,80 @@ curl -X POST http://localhost:5000/generate \\
 
 @app.route('/health')
 def health_check():
-    """Enhanced health check endpoint with detailed directory status"""
-    # Check directory status
-    dir_status = {}
-    directories_to_check = [
-        'uploads', 
-        'uploads/main', 
-        'uploads/watermark', 
-        'uploads/background', 
-        'generated',
-        'output'
-    ]
-    
-    for dir_name in directories_to_check:
-        dir_path = dir_name
-        dir_status[dir_name] = {
-            'exists': os.path.exists(dir_path),
-            'writable': os.access(dir_path, os.W_OK) if os.path.exists(dir_path) else False,
-            'readable': os.access(dir_path, os.R_OK) if os.path.exists(dir_path) else False
-        }
-    
-    # Check if generator can be imported
-    generator_import_ok = True
-    generator_error = None
+    """Health check endpoint with comprehensive system status"""
     try:
-        from enhanced_social_generator import EnhancedSocialImageGenerator
-        generator = EnhancedSocialImageGenerator()
+        # Check directory permissions
+        upload_ready = os.access(app.config['UPLOAD_FOLDER'], os.W_OK) if os.path.exists(app.config['UPLOAD_FOLDER']) else False
+        generation_ready = os.access(app.config['GENERATED_FOLDER'], os.W_OK) if os.path.exists(app.config['GENERATED_FOLDER']) else False
+        
+        # Check disk space
+        try:
+            statvfs = os.statvfs('.')
+            free_space_gb = (statvfs.f_frsize * statvfs.f_bavail) / (1024**3)
+            total_space_gb = (statvfs.f_frsize * statvfs.f_blocks) / (1024**3)
+            used_space_gb = total_space_gb - free_space_gb
+        except Exception:
+            free_space_gb = None
+            total_space_gb = None
+            used_space_gb = None
+
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat(),
+            'version': '2.0',
+            'system': {
+                'python_version': sys.version,
+                'platform': sys.platform,
+                'upload_ready': upload_ready,
+                'generation_ready': generation_ready,
+                'upload_limit_mb': app.config['MAX_CONTENT_LENGTH'] / (1024 * 1024)
+            },
+            'storage': {
+                'free_space_gb': round(free_space_gb, 2) if free_space_gb else None,
+                'total_space_gb': round(total_space_gb, 2) if total_space_gb else None,
+                'used_space_gb': round(used_space_gb, 2) if used_space_gb else None
+            }
+        })
     except Exception as e:
-        generator_import_ok = False
-        generator_error = str(e)
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+@app.route('/config', methods=['GET', 'POST'])
+def manage_config():
+    """Manage API configuration settings"""
+    global RETURN_FULL_URLS
     
-    # Overall health status
-    directories_healthy = all(
-        status['exists'] and status['writable'] 
-        for dir_name, status in dir_status.items() 
-        if dir_name != 'output'  # output directory is optional
-    )
+    if request.method == 'GET':
+        return jsonify({
+            'return_full_urls': RETURN_FULL_URLS,
+            'description': 'When True, returns full URLs. When False, returns relative paths.',
+            'example': {
+                'full_urls': 'http://localhost:5000/generated/filename.png',
+                'relative_paths': '/generated/filename.png'
+            }
+        })
     
-    overall_status = 'healthy' if directories_healthy and generator_import_ok else 'degraded'
-    
-    return jsonify({
-        'status': overall_status,
-        'timestamp': datetime.now().isoformat(),
-        'version': '2.0',
-        'directories': dir_status,
-        'permissions_ok': directories_healthy,
-        'generator': {
-            'import_ok': generator_import_ok,
-            'error': generator_error
-        },
-        'system_info': {
-            'python_version': sys.version,
-            'working_directory': os.getcwd(),
-            'upload_limit_mb': app.config['MAX_CONTENT_LENGTH'] / (1024 * 1024)
-        }
-    })
+    elif request.method == 'POST':
+        try:
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'No JSON data provided'}), 400
+            
+            if 'return_full_urls' in data:
+                RETURN_FULL_URLS = bool(data['return_full_urls'])
+                return jsonify({
+                    'success': True,
+                    'message': f'Configuration updated: return_full_urls = {RETURN_FULL_URLS}',
+                    'return_full_urls': RETURN_FULL_URLS
+                })
+            else:
+                return jsonify({'error': 'Missing return_full_urls parameter'}), 400
+                
+        except Exception as e:
+            return jsonify({'error': f'Failed to update configuration: {str(e)}'}), 500
 
 @app.route('/upload/main', methods=['POST'])
 def upload_main_image():
@@ -298,7 +335,7 @@ def upload_main_image():
             return jsonify({'error': f'File upload failed: {error_msg}'}), 500
 
         # Generate URL
-        file_url = url_for('uploaded_file', folder='main', filename=filename, _external=True)
+        file_url = generate_url('uploaded_file', folder='main', filename=filename)
 
         return jsonify({
             'success': True,
@@ -346,7 +383,7 @@ def upload_watermark_image():
             return jsonify({'error': f'File upload failed: {error_msg}'}), 500
 
         # Generate URL
-        file_url = url_for('uploaded_file', folder='watermark', filename=filename, _external=True)
+        file_url = generate_url('uploaded_file', folder='watermark', filename=filename)
 
         return jsonify({
             'success': True,
@@ -396,7 +433,7 @@ def upload_background_image():
 
         # Generate URL
         filename = os.path.basename(filepath)
-        file_url = url_for('uploaded_file', folder='background', filename=filename, _external=True)
+        file_url = generate_url('uploaded_file', folder='background', filename=filename)
 
         return jsonify({
             'success': True,
@@ -615,7 +652,7 @@ def generate_image():
             return jsonify({'error': f'Failed to save generated image: {str(e)}'}), 500
 
         # Generate download URL
-        download_url = url_for('generated_file', filename=output_filename, _external=True)
+        download_url = generate_url('generated_file', filename=output_filename)
 
         # Clean up temp config
         try:
@@ -791,7 +828,7 @@ def generate_text_layout():
             'message': f'Text layout {layout_type} generated successfully',
             'layout_type': layout_type,
             'filename': output_filename,
-            'download_url': url_for('generated_file', filename=output_filename, _external=True),
+            'download_url': generate_url('generated_file', filename=output_filename),
             'size': os.path.getsize(output_path),
             'generated_at': datetime.now().isoformat(),
             'content_used': content
@@ -859,7 +896,7 @@ def generate_all_text_layouts():
                 generated_files.append({
                     'layout_type': layout_type,
                     'filename': filename,
-                    'download_url': url_for('generated_file', filename=filename, _external=True),
+                    'download_url': generate_url('generated_file', filename=filename),
                     'size': os.path.getsize(filepath),
                     'generated_at': datetime.now().isoformat()
                 })
@@ -1194,7 +1231,7 @@ def generate_gradient():
             return jsonify({'error': f'Failed to save gradient image: {str(e)}'}), 500
 
         # Generate download URL
-        download_url = url_for('generated_file', filename=output_filename, _external=True)
+        download_url = generate_url('generated_file', filename=output_filename)
 
         return jsonify({
             'success': True,
