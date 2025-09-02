@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y \
     libwebp-dev \
     tcl-dev \
     tk-dev \
+    gosu \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -42,20 +43,21 @@ RUN python -c "import flask, PIL, numpy; print('✅ Core packages installed succ
 COPY src/ ./src/
 COPY assets/ ./assets/
 COPY social_image_api.py ./
+COPY fix-permissions.sh ./
 
 # Verify critical files were copied
 RUN test -f social_image_api.py && \
     test -f src/enhanced_social_generator.py && \
     test -d assets/fonts && \
+    test -f fix-permissions.sh && \
     echo "✅ All critical files copied successfully" || \
     (echo "❌ Critical files missing after copy" && exit 1)
 
-# Create directories and set proper permissions
-RUN mkdir -p uploads/main uploads/background uploads/watermark output generated && \
-    chown -R appuser:appuser /app
+# Make permission fix script executable
+RUN chmod +x fix-permissions.sh
 
-# Switch to non-root user
-USER appuser
+# Create directories and set proper permissions
+RUN mkdir -p uploads/main uploads/background uploads/watermark output generated
 
 # Set environment variables
 ENV PYTHONPATH=/app/src
