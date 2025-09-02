@@ -3,14 +3,12 @@ services:
     build: .
     container_name: social-image-generator
     volumes:
-      # Mount output directory for generated images
-      - ./output:/app/output
-      # Mount uploads directory for user images
-      - ./uploads:/app/uploads
-      # Mount generated directory for API-generated images
-      - ./generated:/app/generated
-      # Mount config directory for custom configurations
+      # Mount config directory for custom configurations (optional)
       - ./config:/app/config
+      # Use named volumes for persistent data
+      - uploads_data:/app/uploads
+      - generated_data:/app/generated
+      - output_data:/app/output
     environment:
       - PYTHONPATH=/app/src
       - PYTHONDONTWRITEBYTECODE=1
@@ -71,7 +69,9 @@ networks:
     driver: bridge
 
 volumes:
-  uploads:
+  uploads_data:
     driver: local
-  output:
+  generated_data:
+    driver: local
+  output_data:
     driver: local

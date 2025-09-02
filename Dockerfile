@@ -57,7 +57,8 @@ RUN test -f social_image_api.py && \
 RUN chmod +x fix-permissions.sh
 
 # Create directories and set proper permissions
-RUN mkdir -p uploads/main uploads/background uploads/watermark output generated
+RUN mkdir -p uploads/main uploads/background uploads/watermark output generated && \
+    chown -R appuser:appuser uploads output generated
 
 # Set environment variables
 ENV PYTHONPATH=/app/src
