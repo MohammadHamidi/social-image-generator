@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-echo "🧪 Testing Docker Setup for Social Image Generator"
-echo "=================================================="
+echo "🧪 Enhanced Docker Setup Test for Social Image Generator"
+echo "========================================================"
 
 # Colors for output
 RED='\033[0;31m'
@@ -26,6 +26,32 @@ print_status() {
     fi
 }
 
+# Function to print section headers
+print_section() {
+    local title=$1
+    echo ""
+    echo -e "${BLUE}┌─────────────────────────────────────────────────────────┐${NC}"
+    echo -e "${BLUE}│ $title${NC}"
+    echo -e "${BLUE}└─────────────────────────────────────────────────────────┘${NC}"
+    echo ""
+}
+
+# Run pre-build validation
+print_section "🔍 Running Pre-Build Validation"
+if [ -f "validate_setup.py" ]; then
+    if python3 validate_setup.py; then
+        print_status "success" "Pre-build validation passed"
+    else
+        print_status "error" "Pre-build validation failed"
+        echo "💡 Fix the issues above before proceeding"
+        exit 1
+    fi
+else
+    print_status "warning" "Pre-build validation script not found, skipping..."
+fi
+
+print_section "🐳 Checking Docker Environment"
+
 # Check if Docker is installed
 if ! command -v docker &> /dev/null; then
     print_status "error" "Docker is not installed"
@@ -33,6 +59,18 @@ if ! command -v docker &> /dev/null; then
 fi
 
 print_status "success" "Docker is available"
+
+# Check Docker version
+DOCKER_VERSION=$(docker --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+print_status "info" "Docker version: $DOCKER_VERSION"
+
+# Check if Docker daemon is running
+if ! docker info &> /dev/null; then
+    print_status "error" "Docker daemon is not running"
+    echo "💡 Start Docker Desktop and try again"
+    exit 1
+fi
+print_status "success" "Docker daemon is running"
 
 # Check if docker-compose is available
 if command -v docker-compose &> /dev/null; then

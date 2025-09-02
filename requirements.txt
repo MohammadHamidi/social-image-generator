@@ -12,9 +12,9 @@ onnxruntime>=1.15.0
 scipy>=1.7.0
 
 # Flask API server
-Flask>=2.3.0
+Flask>=3.0.0
 Flask-CORS>=4.0.0
-Werkzeug>=2.3.0
+Werkzeug>=3.0.0
 requests>=2.31.0
 
 # Optional: Enhanced image processing
