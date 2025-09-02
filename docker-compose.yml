@@ -17,7 +17,7 @@ services:
       # Disable Flask debug mode in production
       - FLASK_ENV=production
     ports:
-      - "5000:5000" # Flask API server port (matches local setup)
+      - "${PORT:-5000}:5000" # Configurable port with fallback to 5000
     restart: unless-stopped
     healthcheck:
       test: [ "CMD", "python", "-c", "import flask; from src.enhanced_social_generator import EnhancedSocialImageGenerator; print('OK')" ]
@@ -27,8 +27,8 @@ services:
       start_period: 60s
     networks:
       - social-image-network
-    # Ensure container runs as correct user
-    user: "1000:1000"
+    # Remove user specification for better Linux compatibility
+    # Let Docker handle user permissions automatically
 
   # Development service with hot reload
   dev:
@@ -42,12 +42,12 @@ services:
       - PYTHONDONTWRITEBYTECODE=1
     command: tail -f /dev/null # Keep container running for development
     ports:
-      - "8000:8000" # For future API endpoints
+      - "${DEV_PORT:-8000}:8000" # Configurable dev port
     profiles:
       - dev
     networks:
       - social-image-network
-    user: "1000:1000"
+    # Remove user specification for better Linux compatibility
 
   # Test service
   test:
@@ -64,7 +64,7 @@ services:
       - test
     networks:
       - social-image-network
-    user: "1000:1000"
+    # Remove user specification for better Linux compatibility
 
 networks:
   social-image-network:

@@ -1,0 +1,25 @@
+# Linux-specific docker-compose override
+# Use this file on Linux systems: docker-compose -f docker-compose.yml -f docker-compose.linux.yml up --build -d
+
+services:
+  social-image-generator:
+    # Override user to match typical Linux user (usually 1000)
+    user: "1000:1000"
+    # Ensure proper permissions for volume mounts
+    volumes:
+      - ./output:/app/output:rw
+      - ./uploads:/app/uploads:rw
+      - ./generated:/app/generated:rw
+      - ./config:/app/config:ro
+
+  dev:
+    user: "1000:1000"
+    volumes:
+      - .:/app:rw
+      - /app/__pycache__
+
+  test:
+    user: "1000:1000"
+    volumes:
+      - .:/app:rw
+      - /app/__pycache__

@@ -17,14 +17,46 @@ A professional-grade Python library for generating high-quality social media ima
 
 ### Option 1: Docker (Recommended)
 
+#### Windows Deployment
 ```bash
 # Clone the repository
 git clone <repository-url>
 cd social-image-generator
 
 # Build and run with Docker
-docker-compose up --build
+docker-compose up --build -d
+
+# Or use the enhanced test script
+.\test_docker.ps1
 ```
+
+#### Linux Deployment
+```bash
+# Clone the repository
+git clone <repository-url>
+cd social-image-generator
+
+# Use Linux-specific build script
+./build-linux.sh
+
+# Or use Docker Compose with Linux config
+docker-compose -f docker-compose.yml -f docker-compose.linux.yml up --build -d
+
+# Traditional Docker Compose (if Linux config not needed)
+docker-compose up --build -d
+```
+
+#### Environment Configuration
+Create a `.env` file for custom configuration:
+```bash
+cp env.example .env
+# Edit .env with your preferred settings
+```
+
+Available environment variables:
+- `PORT`: API port (default: 5000)
+- `DEV_PORT`: Development port (default: 8000)
+- `FLASK_ENV`: Flask environment (default: production)
 
 ### Option 2: Local Installation
 
@@ -216,17 +248,58 @@ generator = EnhancedSocialImageGenerator('config/custom.json')
 
 ## 🐳 Docker Deployment
 
+### Cross-Platform Compatibility
+
+This project is designed to work seamlessly across different operating systems:
+
+#### Windows
+- Uses PowerShell scripts for automation
+- Handles Windows-specific path formats
+- Includes emoji-free logging for compatibility
+
+#### Linux
+- Uses Bash scripts for automation
+- Includes Linux-specific Docker configurations
+- Handles user permissions automatically
+
+#### macOS
+- Compatible with standard Docker Compose commands
+- Uses system fonts as fallbacks
+
 ### Build and Run
 
+#### Windows
+```bash
+# Enhanced build with validation
+.\test_docker.ps1
+
+# Or standard Docker commands
+docker-compose up --build -d
+```
+
+#### Linux
+```bash
+# Linux-specific build script
+./build-linux.sh
+
+# Or with Linux configuration
+docker-compose -f docker-compose.yml -f docker-compose.linux.yml up --build -d
+
+# Or standard Docker commands
+docker-compose up --build -d
+```
+
+#### Manual Docker Commands
 ```bash
 # Build the image
 docker build -t social-image-generator .
 
-# Run container
-docker run -v $(pwd)/output:/app/output social-image-generator
-
-# Or use Docker Compose
-docker-compose up --build
+# Run container (adjust volume paths for your OS)
+docker run -p 5000:5000 \
+  -v $(pwd)/uploads:/app/uploads \
+  -v $(pwd)/generated:/app/generated \
+  -v $(pwd)/output:/app/output \
+  social-image-generator
 ```
 
 ### Docker Compose Services
