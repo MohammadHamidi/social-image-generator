@@ -240,6 +240,7 @@ class EnhancedSocialImageGenerator:
         }
 
         self.fonts = {}
+        self.font_paths = {}  # Store font paths for dynamic sizing
 
         # Load fonts with priority system - Use IRANYekan for all text elements
         self._load_font_category('headline', font_sets['arabic'], self.config['fonts']['headline_size'])
@@ -261,6 +262,7 @@ class EnhancedSocialImageGenerator:
             if os.path.exists(font_path):
                 try:
                     self.fonts[font_name] = ImageFont.truetype(font_path, size)
+                    self.font_paths[font_name] = font_path  # Store the font path
                     print(f"✅ Loaded bundled font for {font_name}: {os.path.basename(font_path)}")
                     return
                 except Exception as e:
@@ -272,6 +274,7 @@ class EnhancedSocialImageGenerator:
             if os.path.exists(font_path):
                 try:
                     self.fonts[font_name] = ImageFont.truetype(font_path, size)
+                    self.font_paths[font_name] = font_path  # Store the font path
                     print(f"✅ Loaded system font for {font_name}: {os.path.basename(font_path)}")
                     return
                 except Exception as e:
@@ -279,6 +282,20 @@ class EnhancedSocialImageGenerator:
                     continue
 
         # If no fonts loaded, will use default (handled in main function)
+
+    def _get_font_with_size(self, font_name: str, size: int) -> ImageFont.ImageFont:
+        """Get a font with a specific size"""
+        if font_name in self.font_paths:
+            try:
+                return ImageFont.truetype(self.font_paths[font_name], size)
+            except Exception as e:
+                print(f"⚠️  Failed to load font {font_name} at size {size}: {e}")
+
+        # Fallback to existing font or default
+        if font_name in self.fonts:
+            return self.fonts[font_name]
+
+        return ImageFont.load_default()
 
     def _remove_background_auto(self, image: Image.Image) -> Image.Image:
         """Remove background using rembg (AI-based) with fallback to enhanced edge detection"""
@@ -915,57 +932,34 @@ class EnhancedSocialImageGenerator:
     
     def _wrap_arabic_text(self, text: str, font: ImageFont.ImageFont, max_width: int) -> List[str]:
         """Wrap Arabic/Farsi text properly without breaking text reshaping"""
-        # Process the entire text first
-        processed_text = self._prepare_arabic_text(text)
-        
-        # For Arabic text, we'll use character-based wrapping instead of word-based
-        # This preserves the text reshaping and RTL flow
+        # For Arabic text, we'll use word-based wrapping but return the original text
+        # The reshaping will be done during rendering to avoid double processing
         lines = []
         current_line = ""
-        
-        # Split by sentences first (using common Arabic punctuation)
-        sentences = text.replace('؛', '؛\n').replace('؟', '؟\n').replace('!', '!\n').replace('.', '.\n').split('\n')
-        
-        for sentence in sentences:
-            sentence = sentence.strip()
-            if not sentence:
-                continue
-                
-            # Process the sentence
-            processed_sentence = self._prepare_arabic_text(sentence)
-            
-            # Check if sentence fits in one line
-            bbox = font.getbbox(processed_sentence)
+        words = text.split()
+
+        for word in words:
+            # Test current line + new word
+            test_line = current_line + " " + word if current_line else word
+
+            # Process for width calculation
+            processed_test = self._prepare_arabic_text(test_line)
+            bbox = font.getbbox(processed_test)
             text_width = bbox[2] - bbox[0]
-            
+
             if text_width <= max_width:
-                lines.append(sentence)
+                current_line = test_line
             else:
-                # Sentence is too long, need to break it
-                # For Arabic, we'll break at natural points (after words)
-                words = sentence.split()
-                current_line = ""
-                
-                for word in words:
-                    test_line = current_line + " " + word if current_line else word
-                    processed_test = self._prepare_arabic_text(test_line)
-                    
-                    bbox = font.getbbox(processed_test)
-                    text_width = bbox[2] - bbox[0]
-                    
-                    if text_width <= max_width:
-                        current_line = test_line
-                    else:
-                        if current_line:
-                            lines.append(current_line.strip())
-                            current_line = word
-                        else:
-                            # Single word is too long, force it
-                            lines.append(word)
-                
                 if current_line:
                     lines.append(current_line.strip())
-        
+                    current_line = word
+                else:
+                    # Single word is too long, force it
+                    lines.append(word)
+
+        if current_line:
+            lines.append(current_line.strip())
+
         return lines
     
     def _wrap_latin_text(self, text: str, font: ImageFont.ImageFont, max_width: int) -> List[str]:
@@ -1100,9 +1094,22 @@ class EnhancedSocialImageGenerator:
             line_x = x
             if alignment == 'center':
                 line_x = x - line_width // 2
-            elif alignment == 'right' or (is_rtl and alignment == 'left'):
-                line_x = x - line_width
-            # 'left' uses x as-is
+            elif alignment == 'right':
+                # For right alignment, position so the right edge of text aligns with x
+                if is_rtl:
+                    # For RTL text with right alignment, use proper RTL positioning
+                    # Position from right margin with appropriate padding
+                    safe_margin = self._get_safe_margins()['sides']
+                    line_x = self.config['canvas_width'] - safe_margin - line_width
+                else:
+                    line_x = x - line_width
+            elif alignment == 'left':
+                if is_rtl:
+                    # For RTL text with left alignment, still position from right but closer to center
+                    line_x = x - line_width // 4  # Slight offset for better balance
+                else:
+                    line_x = x  # LTR left alignment uses x as-is
+            # Default center behavior handled above
             
             # Justify text (except last line)
             if justify and i < len(lines) - 1 and len(line.split()) > 1:
@@ -1449,22 +1456,28 @@ class EnhancedSocialImageGenerator:
         primary_color = tuple(colors.get('primary', [45, 123, 251]))
         text_color = tuple(colors.get('neutral', {}).get('white', [255, 255, 255]))
         
-        # Transform text
-        if text_transform == 'uppercase':
-            text = text.upper()
+        # Handle text processing carefully for Arabic/Farsi
+        is_arabic_cta = self._is_arabic_text(text)
         
+        if is_arabic_cta:
+            # For Arabic/Farsi text, use the original text and let the font handle it
+            # Avoid double processing which can cause corruption
+            display_text = text  # Use original text to prevent corruption
+        else:
+            # For non-Arabic text, apply normal processing
+            display_text = text
+            if text_transform == 'uppercase':
+                display_text = display_text.upper()
+
         # Use brand font if no font specified
         if font is None:
             font_size = self._get_font_size('brand')
-            try:
-                font = ImageFont.truetype(self.fonts['brand'].path, font_size)
-            except:
-                font = self.fonts['brand']
-        
+            font = self._get_font_with_size('brand', font_size)
+
         draw = ImageDraw.Draw(img)
-        
+
         # Get text dimensions
-        bbox = draw.textbbox((0, 0), text, font=font)
+        bbox = draw.textbbox((0, 0), display_text, font=font)
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
         
@@ -1473,7 +1486,13 @@ class EnhancedSocialImageGenerator:
         button_height = text_height + (2 * padding_v)
         
         x, y = position
-        button_x = x - button_width // 2  # Center the button
+        
+        # Adjust button positioning for RTL layout
+        if is_arabic_cta:
+            # For Arabic CTA, align button properly with RTL text flow
+            button_x = x - button_width + 20  # Slight offset from edge
+        else:
+            button_x = x - button_width // 2  # Center the button for LTR
         button_y = y
         
         # Draw button background with rounded corners
@@ -1494,8 +1513,8 @@ class EnhancedSocialImageGenerator:
         # Draw text on button
         text_x = button_x + padding_h
         text_y = button_y + padding_v
-        
-        draw.text((text_x, text_y), text, font=font, fill=text_color)
+
+        draw.text((text_x, text_y), display_text, font=font, fill=text_color)
         
         return button_width, button_height
 
@@ -1630,25 +1649,34 @@ class EnhancedSocialImageGenerator:
         safe_margins = self._get_safe_margins()
         max_text_width = self._get_max_text_width()
         
-        # Use design system font sizes
+        # Detect Arabic text first
+        is_arabic = self._is_arabic_text(quote)
+        
+        # Use design system font sizes with Persian text optimization
         quote_font_size = self._get_font_size('h1')
-        try:
-            quote_font = ImageFont.truetype(self.fonts['headline'].path, quote_font_size)
-        except:
-            quote_font = self.fonts['headline']
+        if is_arabic:
+            # Slightly larger font size for Persian text for better readability
+            quote_font_size = int(quote_font_size * 1.1)
+        quote_font = self._get_font_with_size('headline', quote_font_size)
         
         # Format quote with proper quotation marks
-        is_arabic = self._is_arabic_text(quote)
         formatted_quote = self._format_quote_text(quote, is_arabic)
         
         # Calculate vertical centering
         canvas_center_y = self.config['canvas_height'] // 2
         quote_start_y = canvas_center_y - 100  # Offset upward for better balance
         
-        # Draw quote with design system multiline text
+        # Draw quote with proper RTL positioning
+        # For RTL text, use a position that allows proper right-alignment with margins
+        quote_x_position = self.config['canvas_width'] // 2
+        if is_arabic:
+            # For Arabic text, position further right to account for right alignment
+            safe_margin = self._get_safe_margins()['sides']
+            quote_x_position = self.config['canvas_width'] - safe_margin
+        
         quote_width, quote_height = self._draw_multiline_text(
             img, formatted_quote, quote_font,
-            (self.config['canvas_width'] // 2, quote_start_y),
+            (quote_x_position, quote_start_y),
             tuple(self.config.get('design_system', {}).get('colors', {}).get('text', {}).get('primary', [255, 255, 255])),
             max_width=max_text_width,
             alignment='center' if not is_arabic else 'right',
@@ -1664,20 +1692,31 @@ class EnhancedSocialImageGenerator:
             # Format attribution with proper punctuation
             formatted_author = self._format_attribution(author, is_arabic)
             
-            # Use smaller font for attribution
+            # Use properly sized font for attribution with Persian optimization
             author_font_size = self._get_font_size('caption')
-            try:
-                author_font = ImageFont.truetype(self.fonts['subheadline'].path, author_font_size)
-            except:
-                author_font = self.fonts['subheadline']
+            if is_arabic:
+                # Increase attribution font size for better Persian readability
+                author_font_size = int(author_font_size * 1.3)
+            author_font = self._get_font_with_size('subheadline', author_font_size)
             
             # Draw attribution with proper alignment
             text_color = tuple(self.config.get('design_system', {}).get('colors', {}).get('text', {}).get('secondary', [203, 213, 225]))
             
+            # Position author text correctly for RTL with proper margins
+            if is_arabic:
+                # For Arabic text, position with proper right margin and alignment
+                safe_margin = self._get_safe_margins()['sides']
+                author_x = self.config['canvas_width'] - safe_margin - 20  # Additional padding for aesthetics
+                centered = False
+            else:
+                # For LTR text, center normally
+                author_x = self.config['canvas_width'] // 2
+                centered = True
+                
             self._draw_enhanced_text(img, formatted_author, author_font,
-                                   (self.config['canvas_width'] // 2, author_y),
-                                   text_color, 
-                                   centered=True if not is_arabic else False,
+                                   (author_x, author_y),
+                                   text_color,
+                                   centered=centered,
                                    add_shadow=True)
 
         # Brand at bottom with safe area - only show if no logo present
@@ -1689,10 +1728,7 @@ class EnhancedSocialImageGenerator:
 
         if brand and brand_text_present:
             brand_font_size = self._get_font_size('brand')
-            try:
-                brand_font = ImageFont.truetype(self.fonts['brand'].path, brand_font_size)
-            except:
-                brand_font = self.fonts['brand']
+            brand_font = self._get_font_with_size('brand', brand_font_size)
 
             brand_y = self.config['canvas_height'] - safe_margins['bottom']
             brand_color = tuple(self.config.get('design_system', {}).get('colors', {}).get('text', {}).get('muted', [148, 163, 184]))
@@ -1723,7 +1759,7 @@ class EnhancedSocialImageGenerator:
         # Body text - smaller, justified
         body_y = title_y + title_height + 80
         body_font_size = 28
-        body_font = ImageFont.truetype(self.fonts['subheadline'].path, body_font_size)
+        body_font = self._get_font_with_size('subheadline', body_font_size)
         
         body_width, body_height = self._draw_multiline_text(
             img, body, body_font,
@@ -1755,10 +1791,7 @@ class EnhancedSocialImageGenerator:
         
         # Title - use H1 from design system
         title_font_size = self._get_font_size('h1')
-        try:
-            title_font = ImageFont.truetype(self.fonts['headline'].path, title_font_size)
-        except:
-            title_font = self.fonts['headline']
+        title_font = self._get_font_with_size('headline', title_font_size)
         
         # Start content higher for better balance
         title_y = 200
@@ -1782,10 +1815,7 @@ class EnhancedSocialImageGenerator:
         
         # Use design system font size for body text
         desc_font_size = self._get_font_size('body')
-        try:
-            desc_font = ImageFont.truetype(self.fonts['subheadline'].path, desc_font_size)
-        except:
-            desc_font = self.fonts['subheadline']
+        desc_font = self._get_font_with_size('subheadline', desc_font_size)
         
         is_desc_arabic = self._is_arabic_text(description)
         text_secondary_color = tuple(self.config.get('design_system', {}).get('colors', {}).get('text', {}).get('secondary', [203, 213, 225]))
@@ -1800,21 +1830,27 @@ class EnhancedSocialImageGenerator:
             is_rtl=is_desc_arabic
         )
         
-        # Call-to-action - use design system CTA button
+        # Call-to-action - use design system CTA button with RTL positioning
         if cta:
             cta_spacing = self._get_spacing('cta_margin')
             cta_y = desc_y + desc_height + cta_spacing
             
+            # Position CTA button appropriately for RTL layout
+            is_cta_arabic = self._is_arabic_text(cta)
+            if is_cta_arabic:
+                # For Arabic CTA, position slightly right of center for better balance
+                safe_margin = self._get_safe_margins()['sides']
+                cta_x = self.config['canvas_width'] - safe_margin - 100  # Offset from right edge
+            else:
+                cta_x = self.config['canvas_width'] // 2  # Center for LTR
+            
             # Use the new CTA button system
-            self._draw_cta_button(img, cta, (self.config['canvas_width'] // 2, cta_y))
+            self._draw_cta_button(img, cta, (cta_x, cta_y))
         
         # Brand at bottom with safe area
         if brand:
             brand_font_size = self._get_font_size('brand')
-            try:
-                brand_font = ImageFont.truetype(self.fonts['brand'].path, brand_font_size)
-            except:
-                brand_font = self.fonts['brand']
+            brand_font = self._get_font_with_size('brand', brand_font_size)
             
             brand_y = self.config['canvas_height'] - safe_margins['bottom']
             brand_color = tuple(self.config.get('design_system', {}).get('colors', {}).get('text', {}).get('muted', [148, 163, 184]))
@@ -1844,7 +1880,7 @@ class EnhancedSocialImageGenerator:
         
         # List items
         item_font_size = 30
-        item_font = ImageFont.truetype(self.fonts['subheadline'].path, item_font_size)
+        item_font = self._get_font_with_size('subheadline', item_font_size)
         item_y = title_y + title_height + 60
         
         for i, item in enumerate(items):
