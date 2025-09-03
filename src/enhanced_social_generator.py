@@ -901,7 +901,75 @@ class EnhancedSocialImageGenerator:
             return line_heights.get('latin', 1.4)
 
     def _wrap_text(self, text: str, font: ImageFont.ImageFont, max_width: int) -> List[str]:
-        """Wrap text to fit within specified width"""
+        """Wrap text to fit within specified width with proper Arabic/Farsi support"""
+        # Check if this is Arabic/Farsi text
+        is_arabic = self._is_arabic_text(text)
+        
+        if is_arabic:
+            # For Arabic/Farsi, we need to process the entire text first, then wrap
+            # This prevents breaking the text reshaping process
+            return self._wrap_arabic_text(text, font, max_width)
+        else:
+            # For Latin text, use the original word-based wrapping
+            return self._wrap_latin_text(text, font, max_width)
+    
+    def _wrap_arabic_text(self, text: str, font: ImageFont.ImageFont, max_width: int) -> List[str]:
+        """Wrap Arabic/Farsi text properly without breaking text reshaping"""
+        # Process the entire text first
+        processed_text = self._prepare_arabic_text(text)
+        
+        # For Arabic text, we'll use character-based wrapping instead of word-based
+        # This preserves the text reshaping and RTL flow
+        lines = []
+        current_line = ""
+        
+        # Split by sentences first (using common Arabic punctuation)
+        sentences = text.replace('؛', '؛\n').replace('؟', '؟\n').replace('!', '!\n').replace('.', '.\n').split('\n')
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+                
+            # Process the sentence
+            processed_sentence = self._prepare_arabic_text(sentence)
+            
+            # Check if sentence fits in one line
+            bbox = font.getbbox(processed_sentence)
+            text_width = bbox[2] - bbox[0]
+            
+            if text_width <= max_width:
+                lines.append(sentence)
+            else:
+                # Sentence is too long, need to break it
+                # For Arabic, we'll break at natural points (after words)
+                words = sentence.split()
+                current_line = ""
+                
+                for word in words:
+                    test_line = current_line + " " + word if current_line else word
+                    processed_test = self._prepare_arabic_text(test_line)
+                    
+                    bbox = font.getbbox(processed_test)
+                    text_width = bbox[2] - bbox[0]
+                    
+                    if text_width <= max_width:
+                        current_line = test_line
+                    else:
+                        if current_line:
+                            lines.append(current_line.strip())
+                            current_line = word
+                        else:
+                            # Single word is too long, force it
+                            lines.append(word)
+                
+                if current_line:
+                    lines.append(current_line.strip())
+        
+        return lines
+    
+    def _wrap_latin_text(self, text: str, font: ImageFont.ImageFont, max_width: int) -> List[str]:
+        """Wrap Latin text using word-based approach"""
         words = text.split()
         lines = []
         current_line = []
@@ -909,10 +977,9 @@ class EnhancedSocialImageGenerator:
         for word in words:
             # Test current line + new word
             test_line = ' '.join(current_line + [word])
-            display_test = self._prepare_arabic_text(test_line)
             
             # Get text width
-            bbox = font.getbbox(display_test)
+            bbox = font.getbbox(test_line)
             text_width = bbox[2] - bbox[0]
             
             if text_width <= max_width:
@@ -1020,7 +1087,9 @@ class EnhancedSocialImageGenerator:
         shadow_color = tuple(int(c) for c in shadow_color_raw)  # Ensure integers
         
         for i, line in enumerate(lines):
-            display_line = self._prepare_arabic_text(line)
+            # For Arabic text, the line is already processed in _wrap_arabic_text
+            # For Latin text, no processing is needed
+            display_line = line if not self._is_arabic_text(line) else self._prepare_arabic_text(line)
             
             # Get line dimensions
             bbox = draw.textbbox((0, 0), display_line, font=font)
