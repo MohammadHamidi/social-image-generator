@@ -87,16 +87,41 @@ def safe_makedirs(path, exist_ok=True):
 def generate_url(endpoint, **kwargs):
     """
     Generate URL based on configuration setting.
-    
+
     Args:
         endpoint (str): Flask endpoint name
         **kwargs: Arguments for url_for
-        
+
     Returns:
         str: Relative path or full URL based on RETURN_FULL_URLS setting
     """
     if RETURN_FULL_URLS:
-        return url_for(endpoint, _external=True, **kwargs)
+        # Try to get the URL with _external=True first
+        try:
+            url = url_for(endpoint, _external=True, **kwargs)
+            # Check if the URL has the correct port (9009)
+            if ':9009' not in url:
+                # If URL has http://hostname/path format (no port), add :9009 after hostname
+                if url.startswith('http://') and url.count(':') == 1:
+                    # Split after http:// to insert port
+                    parts = url.split('/', 3)
+                    if len(parts) >= 3:
+                        hostname_and_port = parts[2]
+                        if ':' not in hostname_and_port:
+                            # Add port after hostname
+                            parts[2] = f"{hostname_and_port}:9009"
+                            url = '/'.join(parts)
+                # Handle cases where port 80 or 443 needs to be replaced
+                elif ':80' in url:
+                    url = url.replace(':80', ':9009')
+                elif ':443' in url:
+                    url = url.replace(':443', ':9009')
+            return url
+        except Exception:
+            # Fallback: construct URL manually
+            base_url = "http://87.236.166.7:9009"
+            relative_url = url_for(endpoint, _external=False, **kwargs)
+            return f"{base_url}{relative_url}"
     else:
         return url_for(endpoint, _external=False, **kwargs)
 
