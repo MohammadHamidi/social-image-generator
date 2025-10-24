@@ -1,5 +1,9 @@
 # Enhanced Social Media Image Generator Dockerfile
+# Optimized for Coolify deployment
 FROM python:3.11-slim
+
+# Build arguments (can be overridden during build)
+ARG PORT=5000
 
 # Set working directory
 WORKDIR /app
@@ -64,14 +68,20 @@ RUN mkdir -p uploads/main uploads/background uploads/watermark output generated 
 ENV PYTHONPATH=/app/src
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV FLASK_ENV=production
-ENV PORT=5000
+ENV PORT=${PORT}
 
-# Expose the port the app runs on
-EXPOSE 5000
+# Expose the port the app runs on (Coolify will detect this)
+EXPOSE ${PORT}
 
-# Health check - simple import test
+# Health check - uses the Flask /health endpoint for proper monitoring
+# Coolify will use this to verify the application is running correctly
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import flask; print('OK')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT}/health').read()" || exit 1
+
+# Labels for Coolify (optional but helpful)
+LABEL maintainer="Social Image Generator"
+LABEL description="AI-powered social media image generator with multi-language support"
+LABEL coolify.managed="true"
 
 # Switch to non-root user
 USER appuser

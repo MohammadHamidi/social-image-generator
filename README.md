@@ -64,7 +64,27 @@ If you prefer docker-compose, it's still available:
 docker-compose up --build -d
 ```
 
-### Option 2: Local Installation
+### Option 2: Coolify Deployment (Production-Ready PaaS)
+
+**🚀 Optimized for Coolify!** Deploy to your own PaaS in minutes.
+
+The application is fully optimized for [Coolify](https://coolify.io) deployment with:
+- ✅ Automatic health checks
+- ✅ Zero-downtime deployments
+- ✅ Built-in SSL/TLS
+- ✅ Persistent storage support
+- ✅ Real-time monitoring
+
+**Quick Deploy:**
+1. Connect your Git repository to Coolify
+2. Set build pack to **Dockerfile**
+3. Configure persistent volumes for `/app/uploads`, `/app/output`, `/app/generated`
+4. Add environment variables from `.env.coolify`
+5. Deploy!
+
+📖 **Complete Coolify guide:** [COOLIFY_DEPLOYMENT.md](COOLIFY_DEPLOYMENT.md)
+
+### Option 3: Local Installation
 
 ```bash
 # Install Python dependencies
