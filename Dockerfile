@@ -64,10 +64,17 @@ RUN mkdir -p uploads/main uploads/background uploads/watermark output generated 
 ENV PYTHONPATH=/app/src
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV FLASK_ENV=production
+ENV PORT=5000
+
+# Expose the port the app runs on
+EXPOSE 5000
 
 # Health check - simple import test
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import flask; print('OK')" || exit 1
+
+# Switch to non-root user
+USER appuser
 
 # Default command - start Flask API server
 CMD ["python", "social_image_api.py"]

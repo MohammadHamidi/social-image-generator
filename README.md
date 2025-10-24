@@ -15,48 +15,54 @@ A professional-grade Python library for generating high-quality social media ima
 
 ## 📦 Installation
 
-### Option 1: Docker (Recommended)
+### Option 1: Docker (Recommended - Simple Setup)
 
-#### Windows Deployment
+**🎯 New Simplified Workflow!** No docker-compose needed - just Dockerfile + .env
+
+#### Quick Start (3 Steps)
+
+**Linux/Mac:**
 ```bash
-# Clone the repository
+# 1. Clone the repository
 git clone <repository-url>
 cd social-image-generator
 
-# Build and run with Docker
-docker-compose up --build -d
+# 2. Build the image
+./build.sh
 
-# Or use the enhanced test script
-.\test_docker.ps1
+# 3. Run the container
+./run.sh
 ```
 
-#### Linux Deployment
-```bash
-# Clone the repository
+**Windows:**
+```cmd
+# 1. Clone the repository
 git clone <repository-url>
 cd social-image-generator
 
-# Use Linux-specific build script
-./build-linux.sh
+# 2. Build the image
+build.bat
 
-# Or use Docker Compose with Linux config
-docker-compose -f docker-compose.yml -f docker-compose.linux.yml up --build -d
-
-# Traditional Docker Compose (if Linux config not needed)
-docker-compose up --build -d
+# 3. Run the container
+run.bat
 ```
+
+**That's it!** API available at `http://localhost:5000`
+
+📖 **For detailed Docker documentation, see [DOCKER_QUICKSTART.md](DOCKER_QUICKSTART.md)**
 
 #### Environment Configuration
-Create a `.env` file for custom configuration:
+The `.env` file is already configured with sensible defaults. To customize:
 ```bash
-cp env.example .env
 # Edit .env with your preferred settings
+# Available options: PORT, IMAGE_NAME, CONTAINER_NAME, etc.
 ```
 
-Available environment variables:
-- `PORT`: API port (default: 5000)
-- `DEV_PORT`: Development port (default: 8000)
-- `FLASK_ENV`: Flask environment (default: production)
+#### Legacy Docker Compose (Optional)
+If you prefer docker-compose, it's still available:
+```bash
+docker-compose up --build -d
+```
 
 ### Option 2: Local Installation
 
