@@ -1458,19 +1458,24 @@ def internal_server_error(error):
     }), 500
 
 if __name__ == '__main__':
+    # Get port from environment variable (for Coolify/Docker compatibility)
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_ENV', 'production') != 'production'
+
     print("🚀 Social Image Generator API Server")
     print("=" * 60)
-    
+
     if not directories_ok:
         print("⚠️  WARNING: Some directories could not be initialized")
         print("💡 Check Docker permissions and volume mounts")
         print("💡 Some upload functionality may not work properly")
     else:
         print("✅ All directories initialized successfully")
-    
-    print(f"📡 Starting server on http://localhost:5000")
-    print(f"📖 API Documentation: http://localhost:5000")
-    print(f"💡 Health Check: http://localhost:5000/health")
+
+    print(f"📡 Starting server on http://0.0.0.0:{port}")
+    print(f"📖 API Documentation: http://localhost:{port}")
+    print(f"💡 Health Check: http://localhost:{port}/health")
+    print(f"🔧 Environment: {os.environ.get('FLASK_ENV', 'production')}")
     print()
     print("📤 Upload Endpoints:")
     print("   POST /upload/main - Upload main image")
@@ -1493,4 +1498,4 @@ if __name__ == '__main__':
     print("Press Ctrl+C to stop the server")
     print("=" * 60)
 
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=debug, host='0.0.0.0', port=port)
