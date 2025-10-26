@@ -45,8 +45,8 @@ def import_layouts():
         if filename.endswith('.py') and filename not in ('__init__.py', 'base.py'):
             module_name = filename[:-3]  # Remove .py
             try:
-                # Import relative to layouts package
-                importlib.import_module(f'layouts.{module_name}', package='src')
+                # Import using absolute path from src.layouts
+                importlib.import_module(f'src.layouts.{module_name}')
             except Exception as e:
                 print(f"Warning: Could not import layout module {module_name}: {e}")
                 import traceback

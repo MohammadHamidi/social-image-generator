@@ -1,0 +1,23 @@
+{
+  "layout_type": "split_image_text",
+  "content": {
+    "title": "ویژگی‌های برتر",
+    "description": "همه چیزی که نیاز دارید در یک پلتفرم قدرتمند",
+    "bullets": [
+      "عملکرد سریع",
+      "استفاده آسان",
+      "امن و قابل اعتماد"
+    ]
+  },
+  "assets": {
+    "hero_image_url": "https://picsum.photos/540/1350"
+  },
+  "background": {
+    "mode": "solid_color",
+    "color": [255, 255, 255]
+  },
+  "options": {
+    "split_direction": "vertical",
+    "image_position": "right"
+  }
+}

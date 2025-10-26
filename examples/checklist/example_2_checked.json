@@ -1,0 +1,29 @@
+{
+  "layout_type": "checklist",
+  "content": {
+    "title": "Product Launch Checklist",
+    "items": [
+      "Define target audience",
+      "Create marketing materials",
+      "Set up landing page",
+      "Prepare email campaigns",
+      "Schedule social media posts",
+      "Brief customer support team",
+      "Monitor analytics dashboard"
+    ],
+    "brand": "StartupCo"
+  },
+  "background": {
+    "mode": "gradient",
+    "gradient": {
+      "colors": [[230, 255, 240], [255, 255, 255]],
+      "direction": "vertical"
+    }
+  },
+  "options": {
+    "check_style": "checkmark",
+    "items_checked": [0, 1, 2, 4],
+    "check_color": [40, 167, 69],
+    "title_color": [25, 135, 84]
+  }
+}

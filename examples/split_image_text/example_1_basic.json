@@ -1,0 +1,19 @@
+{
+  "layout_type": "split_image_text",
+  "content": {
+    "title": "Premium Features",
+    "description": "Everything you need in one powerful platform"
+  },
+  "assets": {
+    "hero_image_url": "https://picsum.photos/540/1350"
+  },
+  "background": {
+    "mode": "solid_color",
+    "color": [255, 255, 255]
+  },
+  "options": {
+    "split_direction": "vertical",
+    "image_position": "left",
+    "image_ratio": 0.5
+  }
+}

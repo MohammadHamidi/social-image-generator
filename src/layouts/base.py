@@ -142,34 +142,6 @@ class LayoutEngine(ABC):
         arabic_pattern = r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]'
         return bool(re.search(arabic_pattern, text))
 
-    def get_schema(self) -> Dict[str, Any]:
-        """
-        Get JSON schema for this layout type.
-
-        Returns:
-            JSON schema dictionary defining required/optional fields
-        """
-        return {
-            "layout_type": self.LAYOUT_TYPE,
-            "category": self.LAYOUT_CATEGORY,
-            "description": self.DESCRIPTION,
-            "supports_carousel": self.SUPPORTS_CAROUSEL,
-            "required_content": [],
-            "optional_content": [],
-            "required_assets": self.REQUIRED_ASSETS,
-            "optional_assets": self.OPTIONAL_ASSETS
-        }
-
-
-class TextLayoutEngine(LayoutEngine):
-    """
-    Base class for text-focused layouts (quote, announcement, etc.).
-
-    Provides common text rendering utilities.
-    """
-
-    LAYOUT_CATEGORY = "text_focused"
-
     def _prepare_arabic_text(self, text: str) -> str:
         """
         Prepare Arabic/Farsi text for proper display.
@@ -223,6 +195,34 @@ class TextLayoutEngine(LayoutEngine):
             lines.append(' '.join(current_line))
 
         return lines
+
+    def get_schema(self) -> Dict[str, Any]:
+        """
+        Get JSON schema for this layout type.
+
+        Returns:
+            JSON schema dictionary defining required/optional fields
+        """
+        return {
+            "layout_type": self.LAYOUT_TYPE,
+            "category": self.LAYOUT_CATEGORY,
+            "description": self.DESCRIPTION,
+            "supports_carousel": self.SUPPORTS_CAROUSEL,
+            "required_content": [],
+            "optional_content": [],
+            "required_assets": self.REQUIRED_ASSETS,
+            "optional_assets": self.OPTIONAL_ASSETS
+        }
+
+
+class TextLayoutEngine(LayoutEngine):
+    """
+    Base class for text-focused layouts (quote, announcement, etc.).
+
+    Inherits all text rendering utilities from LayoutEngine base class.
+    """
+
+    LAYOUT_CATEGORY = "text_focused"
 
 
 class PhotoLayoutEngine(LayoutEngine):

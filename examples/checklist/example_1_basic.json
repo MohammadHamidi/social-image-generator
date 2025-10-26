@@ -1,0 +1,21 @@
+{
+  "layout_type": "checklist",
+  "content": {
+    "title": "5 Tips for Better Design",
+    "items": [
+      "Keep it simple and clean",
+      "Use consistent typography",
+      "Test with real users",
+      "Focus on user needs",
+      "Iterate based on feedback"
+    ],
+    "brand": "Design Studio"
+  },
+  "background": {
+    "mode": "gradient",
+    "gradient": {
+      "colors": [[255, 247, 230], [255, 255, 255]],
+      "direction": "vertical"
+    }
+  }
+}

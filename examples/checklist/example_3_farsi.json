@@ -1,0 +1,25 @@
+{
+  "layout_type": "checklist",
+  "content": {
+    "title": "راهنمای شروع کار",
+    "items": [
+      "ثبت نام در سیستم",
+      "تکمیل پروفایل شخصی",
+      "انتخاب دوره های مورد علاقه",
+      "شروع یادگیری",
+      "دریافت گواهینامه"
+    ],
+    "brand": "آکادمی آنلاین"
+  },
+  "background": {
+    "mode": "gradient",
+    "gradient": {
+      "colors": [[240, 230, 255], [255, 255, 255]],
+      "direction": "vertical"
+    }
+  },
+  "options": {
+    "check_style": "number",
+    "check_color": [111, 66, 193]
+  }
+}
