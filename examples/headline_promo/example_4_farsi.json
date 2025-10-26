@@ -1,0 +1,15 @@
+{
+  "layout_type": "headline_promo",
+  "content": {
+    "headline": "فروش تابستانی",
+    "subheadline": "تا ۵۰٪ تخفیف روی همه محصولات",
+    "cta": "خرید کنید"
+  },
+  "background": {
+    "mode": "gradient",
+    "gradient": {
+      "colors": [[78, 205, 196], [255, 107, 107]],
+      "direction": "vertical"
+    }
+  }
+}

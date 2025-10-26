@@ -398,7 +398,33 @@ def list_available_layouts() -> Dict[str, Dict[str, Any]]:
     """
     layouts = {}
     for layout_type, layout_class in LAYOUT_REGISTRY.items():
-        instance = layout_class({})  # Create temporary instance for schema
-        layouts[layout_type] = instance.get_schema()
+        try:
+            # Try to get schema directly from class if possible
+            if hasattr(layout_class, 'get_schema') and callable(getattr(layout_class, 'get_schema')):
+                # Create instance with minimal data just to get schema
+                # Some layouts may have validation, so we catch errors
+                try:
+                    instance = layout_class({}, {}, {}, {})
+                    layouts[layout_type] = instance.get_schema()
+                except:
+                    # If instance creation fails, create a basic schema
+                    layouts[layout_type] = {
+                        'layout_type': layout_type,
+                        'description': getattr(layout_class, 'DESCRIPTION', 'No description'),
+                        'category': getattr(layout_class, 'LAYOUT_CATEGORY', 'unknown'),
+                        'supports_carousel': getattr(layout_class, 'SUPPORTS_CAROUSEL', False)
+                    }
+            else:
+                layouts[layout_type] = {
+                    'layout_type': layout_type,
+                    'description': getattr(layout_class, 'DESCRIPTION', 'No description')
+                }
+        except Exception as e:
+            # Fallback for layouts that can't be instantiated
+            layouts[layout_type] = {
+                'layout_type': layout_type,
+                'description': getattr(layout_class, 'DESCRIPTION', 'No description'),
+                'error': str(e)
+            }
 
     return layouts

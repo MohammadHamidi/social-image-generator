@@ -1,0 +1,12 @@
+{
+  "layout_type": "headline_promo",
+  "content": {
+    "headline": "New Product Launch",
+    "subheadline": "Coming Soon This Fall",
+    "cta": "Get Notified"
+  },
+  "background": {
+    "mode": "solid_color",
+    "color": [52, 73, 94]
+  }
+}

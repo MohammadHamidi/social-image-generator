@@ -1,0 +1,13 @@
+{
+  "layout_type": "headline_promo",
+  "content": {
+    "headline": "Summer Sale"
+  },
+  "background": {
+    "mode": "gradient",
+    "gradient": {
+      "colors": [[255, 107, 107], [253, 187, 45]],
+      "direction": "vertical"
+    }
+  }
+}
