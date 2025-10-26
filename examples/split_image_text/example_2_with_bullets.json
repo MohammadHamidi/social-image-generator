@@ -1,0 +1,24 @@
+{
+  "layout_type": "split_image_text",
+  "content": {
+    "title": "Why Choose Us",
+    "description": "The complete solution for your business",
+    "bullets": [
+      "Fast Performance",
+      "Easy to Use",
+      "Secure & Reliable",
+      "24/7 Support"
+    ]
+  },
+  "assets": {
+    "hero_image_url": "https://picsum.photos/540/1350"
+  },
+  "background": {
+    "mode": "solid_color",
+    "color": [248, 249, 250]
+  },
+  "options": {
+    "split_direction": "vertical",
+    "image_position": "left"
+  }
+}

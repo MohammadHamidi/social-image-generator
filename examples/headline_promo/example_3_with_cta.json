@@ -1,0 +1,15 @@
+{
+  "layout_type": "headline_promo",
+  "content": {
+    "headline": "Summer Sale",
+    "subheadline": "Up to 50% Off Everything",
+    "cta": "Shop Now"
+  },
+  "background": {
+    "mode": "gradient",
+    "gradient": {
+      "colors": [[255, 107, 107], [253, 187, 45]],
+      "direction": "vertical"
+    }
+  }
+}

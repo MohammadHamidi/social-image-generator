@@ -1,0 +1,14 @@
+{
+  "layout_type": "overlay_text",
+  "content": {
+    "text": "Every day is a new beginning",
+    "subtitle": "Make it count"
+  },
+  "assets": {
+    "background_image_url": "https://picsum.photos/1080/1350?random=10"
+  },
+  "options": {
+    "text_position": "center",
+    "overlay_opacity": 0.5
+  }
+}

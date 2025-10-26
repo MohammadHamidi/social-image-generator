@@ -1454,6 +1454,210 @@ def text_layout_info():
         }
     })
 
+@app.route('/generate_post', methods=['POST'])
+def generate_post():
+    """
+    Universal endpoint for generating Instagram posts with any layout type.
+
+    This is the new unified endpoint that supports all layout types via the
+    LayoutEngine architecture.
+
+    Request JSON Format:
+    {
+        "layout_type": "headline_promo | quote | product_showcase | ...",
+        "content": {
+            // Layout-specific content fields
+        },
+        "assets": {
+            "hero_image_url": "...", // optional
+            "logo_image_url": "...", // optional
+            // ... other assets
+        },
+        "background": {
+            "mode": "gradient | solid_color | image",
+            "gradient": {...}, // if mode=gradient
+            "color": [R,G,B], // if mode=solid_color
+            "image_url": "..." // if mode=image
+        },
+        "options": {
+            "width": 1080,
+            "height": 1350,
+            // ... layout-specific options
+        }
+    }
+
+    Returns:
+    {
+        "success": true,
+        "layout_type": "headline_promo",
+        "generated_files": [
+            {
+                "slide": 1,
+                "download_url": "/generated/file.png",
+                "filename": "file.png",
+                "width": 1080,
+                "height": 1350
+            }
+        ],
+        "generated_at": "2025-10-26T..."
+    }
+    """
+    try:
+        # Get JSON data
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+
+        # Extract parameters
+        layout_type = data.get('layout_type')
+        if not layout_type:
+            return jsonify({
+                'error': 'layout_type is required',
+                'available_layouts': list(_get_available_layouts().keys())
+            }), 400
+
+        content = data.get('content', {})
+        assets = data.get('assets', {})
+        background = data.get('background', {})
+        options = data.get('options', {})
+
+        # Import layout system
+        from src.layouts import get_layout_engine, list_available_layouts
+
+        # Get layout engine class
+        try:
+            LayoutClass = get_layout_engine(layout_type)
+        except ValueError as e:
+            available = list_available_layouts()
+            return jsonify({
+                'error': f'Unknown layout type: {layout_type}',
+                'available_layouts': list(available.keys()),
+                'message': str(e)
+            }), 400
+
+        # Create layout instance
+        try:
+            layout = LayoutClass(
+                content=content,
+                assets=assets,
+                background=background,
+                options=options
+            )
+        except ValueError as e:
+            return jsonify({
+                'error': 'Invalid content or assets',
+                'message': str(e),
+                'layout_type': layout_type
+            }), 400
+
+        # Render layout
+        try:
+            images = layout.render()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                'error': 'Rendering failed',
+                'message': str(e),
+                'layout_type': layout_type
+            }), 500
+
+        # Save generated images
+        generated_files = []
+
+        for idx, img in enumerate(images):
+            # Generate unique filename
+            slide_num = idx + 1
+            filename = f"{layout_type}_{uuid.uuid4().hex[:8]}_slide{slide_num}.png"
+            filepath = os.path.join(app.config['GENERATED_FOLDER'], filename)
+
+            try:
+                # Ensure RGB mode for PNG saving
+                if img.mode == 'RGBA':
+                    rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+                    rgb_img.paste(img, mask=img.split()[3] if len(img.split()) == 4 else None)
+                    rgb_img.save(filepath, 'PNG', quality=95)
+                else:
+                    img.save(filepath, 'PNG', quality=95)
+
+                # Generate download URL
+                download_url = generate_url('generated_file', filename=filename)
+
+                generated_files.append({
+                    'slide': slide_num,
+                    'download_url': download_url,
+                    'filename': filename,
+                    'width': img.width,
+                    'height': img.height,
+                    'size_bytes': os.path.getsize(filepath)
+                })
+
+            except Exception as e:
+                return jsonify({
+                    'error': f'Failed to save image {slide_num}',
+                    'message': str(e)
+                }), 500
+
+        return jsonify({
+            'success': True,
+            'layout_type': layout_type,
+            'generated_files': generated_files,
+            'total_slides': len(generated_files),
+            'generated_at': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'error': 'Post generation failed',
+            'message': str(e)
+        }), 500
+
+def _get_available_layouts():
+    """Get list of available layout types (helper function)."""
+    try:
+        from src.layouts import list_available_layouts
+        return list_available_layouts()
+    except:
+        return {
+            'quote': {'description': 'Quote layout (legacy)'},
+            'headline_promo': {'description': 'Headline promo layout (new)'}
+        }
+
+@app.route('/layouts', methods=['GET'])
+def list_layouts():
+    """
+    List all available layout types and their schemas.
+
+    Returns:
+    {
+        "layouts": {
+            "quote": {...},
+            "headline_promo": {...},
+            ...
+        },
+        "count": 2
+    }
+    """
+    try:
+        layouts = _get_available_layouts()
+        return jsonify({
+            'layouts': layouts,
+            'count': len(layouts),
+            'categories': {
+                'text_focused': ['quote', 'announcement', 'headline_promo'],
+                'photo_text_mixed': ['split_image_text', 'product_showcase'],
+                'marketing': ['headline_promo', 'product_showcase'],
+                'educational': ['checklist', 'step_guide']
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'error': 'Failed to list layouts',
+            'message': str(e)
+        }), 500
+
 # Error handlers
 @app.errorhandler(404)
 def not_found(error):
@@ -1522,10 +1726,14 @@ if __name__ == '__main__':
     print("   POST /upload/background - Upload background image")
     print()
     print("🎨 Generation Endpoints:")
+    print("   POST /generate_post - 🆕 Universal endpoint (all layouts)")
     print("   POST /generate_gradient - Generate gradient backgrounds")
     print("   POST /generate - Generate social media image")
     print("   POST /generate_text - Generate text-based layouts")
     print("   POST /generate_all_text - Generate all text layouts")
+    print()
+    print("📋 Layout Information:")
+    print("   GET /layouts - List all available layout types")
     print("   GET /gradient_info - Gradient generation documentation")
     print("   GET /text_layout_info - Text layout documentation")
     print()

@@ -1,0 +1,16 @@
+{
+  "layout_type": "caption_box",
+  "content": {
+    "title": "New Collection",
+    "caption": "Discover our latest summer collection featuring bold colors and modern designs that celebrate individuality",
+    "brand": "Fashion Studio"
+  },
+  "assets": {
+    "hero_image_url": "https://picsum.photos/1080/800?random=40"
+  },
+  "options": {
+    "layout_style": "bottom_box",
+    "image_ratio": 0.65,
+    "caption_bg_color": [245, 245, 250]
+  }
+}

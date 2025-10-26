@@ -1,0 +1,19 @@
+{
+  "layout_type": "product_showcase",
+  "content": {
+    "product_name": "Smart Watch Pro",
+    "price": "399",
+    "description": "Track your fitness, stay connected",
+    "cta": "Buy Now"
+  },
+  "assets": {
+    "hero_image_url": "https://picsum.photos/800/800"
+  },
+  "background": {
+    "mode": "gradient",
+    "gradient": {
+      "colors": [[230, 240, 255], [255, 255, 255]],
+      "direction": "vertical"
+    }
+  }
+}

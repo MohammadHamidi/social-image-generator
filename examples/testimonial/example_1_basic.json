@@ -1,0 +1,15 @@
+{
+  "layout_type": "testimonial",
+  "content": {
+    "quote": "This product changed my life! The quality is outstanding and customer service is exceptional.",
+    "name": "Sarah Johnson",
+    "title": "Marketing Director"
+  },
+  "background": {
+    "mode": "gradient",
+    "gradient": {
+      "colors": [[250, 250, 255], [255, 255, 255]],
+      "direction": "vertical"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "layout_type": "overlay_text",
+  "content": {
+    "text": "هر روز فرصتی تازه است",
+    "subtitle": "از آن استفاده کن"
+  },
+  "assets": {
+    "background_image_url": "https://picsum.photos/1080/1350?random=30"
+  },
+  "options": {
+    "text_position": "center",
+    "overlay_opacity": 0.6,
+    "text_color": [255, 255, 255],
+    "subtitle_color": [200, 200, 200]
+  }
+}

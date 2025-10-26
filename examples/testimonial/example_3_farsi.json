@@ -1,0 +1,19 @@
+{
+  "layout_type": "testimonial",
+  "content": {
+    "quote": "تجربه فوق‌العاده‌ای بود! کیفیت محصول و خدمات مشتری عالی است. به همه توصیه می‌کنم.",
+    "name": "سارا احمدی",
+    "title": "مدیر بازاریابی",
+    "rating": 5
+  },
+  "background": {
+    "mode": "gradient",
+    "gradient": {
+      "colors": [[245, 250, 255], [255, 255, 255]],
+      "direction": "vertical"
+    }
+  },
+  "options": {
+    "quote_style": "large"
+  }
+}
