@@ -1,0 +1,16 @@
+{
+  "layout_type": "caption_box",
+  "content": {
+    "caption": "Experience the future of technology with our innovative solutions designed to transform your business",
+    "brand": "TechCorp"
+  },
+  "assets": {
+    "hero_image_url": "https://picsum.photos/800/1350?random=50"
+  },
+  "options": {
+    "layout_style": "side_box",
+    "image_ratio": 0.5,
+    "caption_bg_color": [255, 255, 255],
+    "caption_color": [50, 50, 50]
+  }
+}

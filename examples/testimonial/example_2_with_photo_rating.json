@@ -1,0 +1,22 @@
+{
+  "layout_type": "testimonial",
+  "content": {
+    "quote": "Absolutely amazing experience! I've recommended this to all my friends and colleagues.",
+    "name": "Michael Chen",
+    "title": "CEO at TechStart",
+    "rating": 5
+  },
+  "assets": {
+    "profile_photo_url": "https://picsum.photos/200/200?random=1"
+  },
+  "background": {
+    "mode": "gradient",
+    "gradient": {
+      "colors": [[255, 250, 245], [255, 255, 255]],
+      "direction": "vertical"
+    }
+  },
+  "options": {
+    "photo_size": 140
+  }
+}
