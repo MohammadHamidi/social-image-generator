@@ -1005,27 +1005,39 @@ def generate_color_harmony(base_color, harmony_type="complementary"):
     return rgb_colors
 
 def apply_dithering(img):
-    """Apply Floyd-Steinberg dithering for smoother gradients"""
-    img_array = np.array(img)
+    """Apply ordered dithering for smoother gradients
 
-    # Simple ordered dithering pattern
+    This applies a subtle dithering effect to reduce color banding in gradients
+    while preserving the gradient's color information.
+    """
+    img_array = np.array(img, dtype=np.float32)
+
+    # Bayer 4x4 dithering matrix (normalized to -0.5 to 0.5 range for subtle effect)
     dither_matrix = np.array([
         [0, 8, 2, 10],
         [12, 4, 14, 6],
         [3, 11, 1, 9],
         [15, 7, 13, 5]
-    ]) / 16.0
+    ], dtype=np.float32) / 16.0 - 0.5  # Center around 0 for bidirectional dithering
 
     height, width = img_array.shape[:2]
     dither_height, dither_width = dither_matrix.shape
 
-    for y in range(height):
-        for x in range(width):
-            old_pixel = img_array[y, x].astype(float) / 255.0
-            dither_value = dither_matrix[y % dither_height, x % dither_width]
+    # Create a full-size dither pattern by tiling
+    dither_pattern = np.tile(dither_matrix, (height // dither_height + 1, width // dither_width + 1))[:height, :width]
 
-            new_pixel = np.where(old_pixel > dither_value, 1.0, 0.0)
-            img_array[y, x] = (new_pixel * 255).astype(np.uint8)
+    # Apply subtle dithering (scale factor controls intensity)
+    dither_strength = 3.0  # Subtle dithering to prevent banding
+
+    # Add dither pattern to each color channel
+    for channel in range(img_array.shape[2] if len(img_array.shape) > 2 else 1):
+        if len(img_array.shape) > 2:
+            img_array[:, :, channel] += dither_pattern * dither_strength
+        else:
+            img_array += dither_pattern * dither_strength
+
+    # Clip to valid range and convert back to uint8
+    img_array = np.clip(img_array, 0, 255).astype(np.uint8)
 
     return Image.fromarray(img_array)
 
@@ -1165,54 +1177,81 @@ def generate_gradient():
                         draw.line([(x, 0), (x, height)], fill=(r, g, b))
 
             else:  # diagonal
-                # Diagonal linear gradient
+                # Diagonal linear gradient (optimized with NumPy)
                 max_dimension = max(width, height)
-                for y in range(height):
-                    for x in range(width):
-                        ratio = (x + y) / (2 * max_dimension - 2)
-                        ratio = min(ratio, 1.0)  # Clamp to [0, 1]
-                        if len(rgb_colors) == 2:
-                            r = int(rgb_colors[0][0] + (rgb_colors[1][0] - rgb_colors[0][0]) * ratio)
-                            g = int(rgb_colors[0][1] + (rgb_colors[1][1] - rgb_colors[0][1]) * ratio)
-                            b = int(rgb_colors[0][2] + (rgb_colors[1][2] - rgb_colors[0][2]) * ratio)
-                            img.putpixel((x, y), (r, g, b))
-                        else:
-                            # Multi-color gradient
-                            segment_ratio = ratio * (len(rgb_colors) - 1)
-                            segment_idx = int(segment_ratio)
-                            if segment_idx >= len(rgb_colors) - 1:
-                                segment_idx = len(rgb_colors) - 2
-                            local_ratio = segment_ratio - segment_idx
-                            r = int(rgb_colors[segment_idx][0] + (rgb_colors[segment_idx + 1][0] - rgb_colors[segment_idx][0]) * local_ratio)
-                            g = int(rgb_colors[segment_idx][1] + (rgb_colors[segment_idx + 1][1] - rgb_colors[segment_idx][1]) * local_ratio)
-                            b = int(rgb_colors[segment_idx][2] + (rgb_colors[segment_idx + 1][2] - rgb_colors[segment_idx][2]) * local_ratio)
-                            img.putpixel((x, y), (r, g, b))
+
+                # Create coordinate grids
+                x_coords, y_coords = np.meshgrid(np.arange(width), np.arange(height))
+
+                # Calculate ratio for each pixel
+                ratio = (x_coords + y_coords) / (2 * max_dimension - 2)
+                ratio = np.clip(ratio, 0.0, 1.0)
+
+                # Create RGB array
+                img_array = np.zeros((height, width, 3), dtype=np.uint8)
+
+                if len(rgb_colors) == 2:
+                    # Simple two-color gradient
+                    for channel in range(3):
+                        img_array[:, :, channel] = (
+                            rgb_colors[0][channel] + (rgb_colors[1][channel] - rgb_colors[0][channel]) * ratio
+                        ).astype(np.uint8)
+                else:
+                    # Multi-color gradient
+                    segment_ratio = ratio * (len(rgb_colors) - 1)
+                    segment_idx = np.clip(segment_ratio.astype(int), 0, len(rgb_colors) - 2)
+                    local_ratio = segment_ratio - segment_idx
+
+                    for channel in range(3):
+                        # Get start and end colors for each segment
+                        start_colors = np.array([rgb_colors[i][channel] for i in range(len(rgb_colors))])
+                        start_color = start_colors[segment_idx]
+                        end_color = start_colors[np.clip(segment_idx + 1, 0, len(rgb_colors) - 1)]
+
+                        img_array[:, :, channel] = (
+                            start_color + (end_color - start_color) * local_ratio
+                        ).astype(np.uint8)
+
+                img = Image.fromarray(img_array)
 
         elif gradient_type == 'radial':
-            # Radial gradient
+            # Radial gradient (optimized with NumPy)
             center_x, center_y = width // 2, height // 2
             max_distance = ((width // 2) ** 2 + (height // 2) ** 2) ** 0.5
 
-            for y in range(height):
-                for x in range(width):
-                    distance = ((x - center_x) ** 2 + (y - center_y) ** 2) ** 0.5
-                    ratio = min(distance / max_distance, 1.0)
-                    if len(rgb_colors) == 2:
-                        r = int(rgb_colors[0][0] + (rgb_colors[1][0] - rgb_colors[0][0]) * ratio)
-                        g = int(rgb_colors[0][1] + (rgb_colors[1][1] - rgb_colors[0][1]) * ratio)
-                        b = int(rgb_colors[0][2] + (rgb_colors[1][2] - rgb_colors[0][2]) * ratio)
-                        img.putpixel((x, y), (r, g, b))
-                    else:
-                        # Multi-color radial gradient
-                        segment_ratio = ratio * (len(rgb_colors) - 1)
-                        segment_idx = int(segment_ratio)
-                        if segment_idx >= len(rgb_colors) - 1:
-                            segment_idx = len(rgb_colors) - 2
-                        local_ratio = segment_ratio - segment_idx
-                        r = int(rgb_colors[segment_idx][0] + (rgb_colors[segment_idx + 1][0] - rgb_colors[segment_idx][0]) * local_ratio)
-                        g = int(rgb_colors[segment_idx][1] + (rgb_colors[segment_idx + 1][1] - rgb_colors[segment_idx][1]) * local_ratio)
-                        b = int(rgb_colors[segment_idx][2] + (rgb_colors[segment_idx + 1][2] - rgb_colors[segment_idx][2]) * local_ratio)
-                        img.putpixel((x, y), (r, g, b))
+            # Create coordinate grids
+            x_coords, y_coords = np.meshgrid(np.arange(width), np.arange(height))
+
+            # Calculate distance from center for each pixel
+            distance = np.sqrt((x_coords - center_x) ** 2 + (y_coords - center_y) ** 2)
+            ratio = np.clip(distance / max_distance, 0.0, 1.0)
+
+            # Create RGB array
+            img_array = np.zeros((height, width, 3), dtype=np.uint8)
+
+            if len(rgb_colors) == 2:
+                # Simple two-color radial gradient
+                for channel in range(3):
+                    img_array[:, :, channel] = (
+                        rgb_colors[0][channel] + (rgb_colors[1][channel] - rgb_colors[0][channel]) * ratio
+                    ).astype(np.uint8)
+            else:
+                # Multi-color radial gradient
+                segment_ratio = ratio * (len(rgb_colors) - 1)
+                segment_idx = np.clip(segment_ratio.astype(int), 0, len(rgb_colors) - 2)
+                local_ratio = segment_ratio - segment_idx
+
+                for channel in range(3):
+                    # Get start and end colors for each segment
+                    start_colors = np.array([rgb_colors[i][channel] for i in range(len(rgb_colors))])
+                    start_color = start_colors[segment_idx]
+                    end_color = start_colors[np.clip(segment_idx + 1, 0, len(rgb_colors) - 1)]
+
+                    img_array[:, :, channel] = (
+                        start_color + (end_color - start_color) * local_ratio
+                    ).astype(np.uint8)
+
+            img = Image.fromarray(img_array)
 
         # Apply enhancement effects
         if add_noise:

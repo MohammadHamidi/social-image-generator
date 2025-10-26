@@ -830,18 +830,22 @@ class EnhancedSocialImageGenerator:
         return bool(re.search(arabic_pattern, text))
     
     def _format_quote_text(self, quote: str, is_arabic: bool = None) -> str:
-        """Format quote with proper quotation marks based on language"""
+        """Format quote with proper quotation marks based on language
+
+        Returns the UNPROCESSED text with quotes added.
+        The text will be reshaped during rendering to avoid double-processing.
+        """
         if is_arabic is None:
             is_arabic = self._is_arabic_text(quote)
-        
+
         if is_arabic:
-            # For Arabic, apply quotes to the ORIGINAL text, then process
+            # For Arabic, add quotes to the ORIGINAL text (do NOT reshape here)
+            # Reshaping will be done once during actual rendering
             rtl_settings = self.config.get('rtl_settings', {})
             open_quote = rtl_settings.get('quote_marks', {}).get('open', '«')
             close_quote = rtl_settings.get('quote_marks', {}).get('close', '»')
             quoted_text = f"{open_quote}{quote}{close_quote}"
-            # Process the quoted text for proper display
-            return self._prepare_arabic_text(quoted_text)
+            return quoted_text
         else:
             # Use proper typographic quotes for Latin text
             return f'"{quote}"'
