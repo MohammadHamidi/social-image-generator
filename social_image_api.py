@@ -1459,6 +1459,8 @@ def generate_post():
     """
     Universal endpoint for generating Instagram posts with any layout type.
 
+    Enhanced with request/response logging for debugging.
+
     This is the new unified endpoint that supports all layout types via the
     LayoutEngine architecture.
 
@@ -1520,6 +1522,25 @@ def generate_post():
         assets = data.get('assets', {})
         background = data.get('background', {})
         options = data.get('options', {})
+
+        # LOG REQUEST for debugging
+        print(f"\n{'='*60}")
+        print(f"📝 GENERATE POST REQUEST")
+        print(f"{'='*60}")
+        print(f"Layout Type: {layout_type}")
+        print(f"Content Fields: {list(content.keys())}")
+        if content:
+            # Log actual content values (truncated for readability)
+            for key, value in content.items():
+                if isinstance(value, str):
+                    display_value = value[:100] + '...' if len(value) > 100 else value
+                    print(f"  • {key}: {display_value}")
+                else:
+                    print(f"  • {key}: {value}")
+        print(f"Assets: {list(assets.keys()) if assets else 'None'}")
+        print(f"Background Mode: {background.get('mode', 'default')}")
+        print(f"Options: {list(options.keys()) if options else 'None'}")
+        print(f"{'='*60}\n")
 
         # Import layout system
         from src.layouts import get_layout_engine, list_available_layouts
@@ -1597,6 +1618,16 @@ def generate_post():
                     'error': f'Failed to save image {slide_num}',
                     'message': str(e)
                 }), 500
+
+        # LOG SUCCESS
+        print(f"\n{'='*60}")
+        print(f"✅ GENERATION SUCCESS")
+        print(f"{'='*60}")
+        print(f"Layout Type: {layout_type}")
+        print(f"Generated Files: {len(generated_files)}")
+        for file_info in generated_files:
+            print(f"  • {file_info['filename']} ({file_info['width']}x{file_info['height']}, {file_info['size_bytes']} bytes)")
+        print(f"{'='*60}\n")
 
         return jsonify({
             'success': True,

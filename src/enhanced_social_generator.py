@@ -714,21 +714,91 @@ class EnhancedSocialImageGenerator:
         return img
 
     def _prepare_arabic_text(self, text: str) -> str:
-        """Prepare Arabic/Farsi text for proper display"""
+        """
+        Prepare Arabic/Farsi text for proper display with validation.
+
+        This function:
+        1. Detects if text is Arabic/Farsi
+        2. Applies BiDi algorithm and reshaping
+        3. Validates output to detect corruption
+        4. Returns original text if processing fails
+
+        Args:
+            text: Input text (may be Arabic/Farsi or Latin)
+
+        Returns:
+            str: Properly shaped text ready for rendering
+        """
+        if not text or not self._is_arabic_text(text):
+            return text
+
         try:
+            # Reshape Arabic characters
             reshaped_text = arabic_reshaper.reshape(text)
-            return get_display(reshaped_text)
-        except:
+
+            # Apply BiDi algorithm
+            bidi_text = get_display(reshaped_text)
+
+            # Validation: reshaped text should not be suspiciously longer
+            # (some corruption causes massive expansion)
+            if len(bidi_text) > len(text) * 2:
+                print(f"⚠️  Warning: Text reshaping produced suspicious output")
+                print(f"   Original: {text[:100]}")
+                print(f"   Original length: {len(text)}")
+                print(f"   Reshaped length: {len(bidi_text)}")
+                print(f"   Returning original text to avoid corruption")
+                return text
+
+            return bidi_text
+
+        except Exception as e:
+            print(f"❌ Error reshaping Arabic text: {e}")
             return text
 
     def _get_font_for_text(self, text: str, font_type: str) -> ImageFont.ImageFont:
-        """Get the appropriate font for text content"""
+        """
+        Get the appropriate font for text content with smart language detection.
+
+        This method intelligently selects fonts based on text content:
+        - Pure English/Latin → Use Latin fonts (NotoSans)
+        - English with Western numerals (0-9) → Use Latin fonts to preserve numerals
+        - Pure Arabic/Farsi → Use Persian fonts (IRANYekan)
+        - Mixed content → Choose based on dominant script
+
+        This prevents issues like IRANYekan converting Western numerals to Persian ones.
+
+        Args:
+            text: The text to render
+            font_type: Type of font ('headline', 'subheadline', 'brand', etc.)
+
+        Returns:
+            ImageFont.ImageFont: Appropriate font for the text
+        """
+        import re
+
         is_arabic = self._is_arabic_text(text)
+        has_latin = bool(re.search(r'[A-Za-z]', text))
+        has_western_numbers = bool(re.search(r'[0-9]', text))
 
         font_dir = os.path.join(self.assets_dir, 'fonts')
 
         if font_type in ['headline', 'subheadline']:
-            if is_arabic:
+            # CRITICAL: English text with numbers must use Latin font
+            # to prevent IRANYekan from converting 0-9 to ۰-۹
+            should_use_latin = (has_latin and has_western_numbers and not is_arabic) or \
+                              (has_latin and not is_arabic)
+
+            if should_use_latin:
+                # Use Latin fonts for English text (especially with numbers)
+                latin_font_path = os.path.join(font_dir, 'NotoSans-Bold.ttf')
+                if os.path.exists(latin_font_path):
+                    try:
+                        font_size = self.config['fonts'][f'{font_type}_size']
+                        return ImageFont.truetype(latin_font_path, font_size)
+                    except:
+                        pass
+
+            elif is_arabic:
                 # Use IRANYekan fonts for Arabic/Persian text with priority
                 font_priority = [
                     'IRANYekanBoldFaNum.ttf' if font_type == 'headline' else 'IRANYekanMediumFaNum.ttf',  # Bold for headlines, Medium for subheadlines
@@ -747,7 +817,7 @@ class EnhancedSocialImageGenerator:
                         except:
                             continue
 
-            # Use Latin font for Latin text or as fallback
+            # Fallback to Latin font if nothing else worked
             latin_font_path = os.path.join(font_dir, 'NotoSans-Bold.ttf')
             if os.path.exists(latin_font_path):
                 try:
@@ -1462,11 +1532,11 @@ class EnhancedSocialImageGenerator:
         
         # Handle text processing carefully for Arabic/Farsi
         is_arabic_cta = self._is_arabic_text(text)
-        
+
         if is_arabic_cta:
-            # For Arabic/Farsi text, use the original text and let the font handle it
-            # Avoid double processing which can cause corruption
-            display_text = text  # Use original text to prevent corruption
+            # For Arabic/Farsi text, properly reshape for RTL rendering
+            # Call _prepare_arabic_text() ONCE to avoid double processing
+            display_text = self._prepare_arabic_text(text)
         else:
             # For non-Arabic text, apply normal processing
             display_text = text
