@@ -15,6 +15,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Tuple, Any
 from PIL import Image, ImageDraw, ImageFont
 import os
+from src.utils.color_utils import get_contrasting_color, calculate_contrast_ratio
 
 
 class LayoutEngine(ABC):
@@ -195,6 +196,59 @@ class LayoutEngine(ABC):
             lines.append(' '.join(current_line))
 
         return lines
+
+    def _get_adaptive_text_color(self, bg_color: Tuple[int, int, int],
+                                 prefer_dark: bool = False) -> Tuple[int, int, int]:
+        """
+        Get optimal text color based on background brightness.
+        
+        Automatically selects black or white text to ensure readability.
+        Uses WCAG contrast calculations.
+        
+        Args:
+            bg_color: Background RGB color
+            prefer_dark: If True, prefer dark text when possible
+            
+        Returns:
+            RGB tuple for text color (either dark gray or white)
+        """
+        return get_contrasting_color(bg_color, high_contrast=True)
+    
+    def _sample_background_color(self, canvas: Image.Image,
+                                 sample_region: str = 'center') -> Tuple[int, int, int]:
+        """
+        Sample the dominant color from a region of the canvas.
+        
+        Useful for getting background color from gradient or image backgrounds.
+        
+        Args:
+            canvas: The image to sample from
+            sample_region: 'center', 'top', 'bottom', 'left', 'right'
+            
+        Returns:
+            RGB tuple representing the sampled color
+        """
+        width, height = canvas.size
+        
+        # Define sample regions (10x10 pixel samples)
+        regions = {
+            'center': (width // 2 - 5, height // 2 - 5, width // 2 + 5, height // 2 + 5),
+            'top': (width // 2 - 5, 50, width // 2 + 5, 60),
+            'bottom': (width // 2 - 5, height - 60, width // 2 + 5, height - 50),
+            'left': (50, height // 2 - 5, 60, height // 2 + 5),
+            'right': (width - 60, height // 2 - 5, width - 50, height // 2 + 5)
+        }
+        
+        region = regions.get(sample_region, regions['center'])
+        cropped = canvas.crop(region)
+        
+        # Get average color
+        colors = list(cropped.getdata())
+        avg_r = sum(r for r, g, b in colors) // len(colors)
+        avg_g = sum(g for r, g, b in colors) // len(colors)
+        avg_b = sum(b for r, g, b in colors) // len(colors)
+        
+        return (avg_r, avg_g, avg_b)
 
     def get_schema(self) -> Dict[str, Any]:
         """

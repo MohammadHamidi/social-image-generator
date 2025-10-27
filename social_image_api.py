@@ -804,6 +804,56 @@ def generate_text_layout():
         except Exception as e:
             return jsonify({'error': f'Failed to initialize generator: {str(e)}'}), 500
         
+        # Handle background color from request
+        background_color = data.get('background_color')
+        if background_color:
+            # Update generator config to use the specified background color
+            # Create a gradient from the provided color to a slightly different shade
+            import colorsys
+            
+            bg_type = data.get('background_type', 'gradient')  # 'gradient', 'solid', etc.
+            
+            if bg_type == 'solid':
+                # Solid color background
+                generator.config['background'] = {
+                    'type': 'solid',
+                    'primary_color': background_color
+                }
+            elif bg_type == 'gradient':
+                # Check if custom secondary color is provided
+                background_secondary_color = data.get('background_secondary_color')
+                
+                if background_secondary_color:
+                    # Use the custom secondary color
+                    primary_color = background_color
+                    secondary_color = background_secondary_color
+                else:
+                    # Auto-generate secondary color (lighter version)
+                    r, g, b = background_color[0]/255.0, background_color[1]/255.0, background_color[2]/255.0
+                    h, s, v = colorsys.rgb_to_hsv(r, g, b)
+                    
+                    # Create a secondary color that's lighter (increase value)
+                    v2 = min(1.0, v + 0.15)  # Make 15% lighter
+                    r2, g2, b2 = colorsys.hsv_to_rgb(h, s, v2)
+                    
+                    primary_color = background_color
+                    secondary_color = [int(r2*255), int(g2*255), int(b2*255)]
+                
+                generator.config['background'] = {
+                    'type': 'gradient',
+                    'primary_color': primary_color,
+                    'secondary_color': secondary_color,
+                    'gradient_direction': 'vertical'
+                }
+            else:
+                # Default to gradient
+                generator.config['background'] = {
+                    'type': 'gradient',
+                    'primary_color': background_color,
+                    'secondary_color': background_color,  # Will be auto-generated
+                    'gradient_direction': 'vertical'
+                }
+        
         # Generate image
         try:
             img = generator.generate_text_layout(layout_type, content)

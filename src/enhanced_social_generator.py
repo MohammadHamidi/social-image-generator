@@ -755,6 +755,43 @@ class EnhancedSocialImageGenerator:
             print(f"❌ Error reshaping Arabic text: {e}")
             return text
 
+    def _sanitize_special_characters(self, text: str) -> str:
+        """
+        Remove or replace problematic special characters that cause rendering issues.
+        
+        This fixes issues like empty squares appearing before author names in quotes.
+        
+        Args:
+            text: Input text that may contain problematic characters
+            
+        Returns:
+            str: Sanitized text with problematic characters removed
+        """
+        if not text:
+            return text
+        
+        # Remove or replace problematic Unicode characters
+        problematic_chars = [
+            '\u25A1',  # Empty square
+            '\u25AF',  # White vertical rectangle
+            '\uFEFF',  # Zero-width no-break space
+            '\u200B',  # Zero-width space
+            '\u200C',  # Zero-width non-joiner
+            '\u200D',  # Zero-width joiner
+        ]
+        
+        sanitized = text
+        for char in problematic_chars:
+            sanitized = sanitized.replace(char, '')
+        
+        # Replace common problematic quotation marks
+        sanitized = sanitized.replace('\u201C', '"')  # Left double quotation mark
+        sanitized = sanitized.replace('\u201D', '"')  # Right double quotation mark
+        sanitized = sanitized.replace('\u2018', "'")  # Left single quotation mark
+        sanitized = sanitized.replace('\u2019', "'")  # Right single quotation mark
+        
+        return sanitized
+
     def _get_font_for_text(self, text: str, font_type: str) -> ImageFont.ImageFont:
         """
         Get the appropriate font for text content with smart language detection.
@@ -899,6 +936,87 @@ class EnhancedSocialImageGenerator:
         import re
         return bool(re.search(arabic_pattern, text))
     
+    def _sample_background_color(self, canvas: Image.Image, 
+                                 sample_region: str = 'center') -> Tuple[int, int, int]:
+        """
+        Sample the dominant color from a region of the canvas.
+        
+        Args:
+            canvas: The image to sample from
+            sample_region: 'center', 'top', 'bottom'
+            
+        Returns:
+            RGB tuple representing the sampled color
+        """
+        width, height = canvas.size
+        
+        # Define sample regions (20x20 pixel samples for better averaging)
+        regions = {
+            'center': (width // 2 - 10, height // 2 - 10, width // 2 + 10, height // 2 + 10),
+            'top': (width // 2 - 10, 100, width // 2 + 10, 120),
+            'bottom': (width // 2 - 10, height - 120, width // 2 + 10, height - 100),
+        }
+        
+        region = regions.get(sample_region, regions['center'])
+        cropped = canvas.crop(region)
+        
+        # Get average color
+        pixels = list(cropped.getdata())
+        if not pixels:
+            return (255, 255, 255)
+            
+        avg_r = sum(p[0] for p in pixels) // len(pixels)
+        avg_g = sum(p[1] for p in pixels) // len(pixels)
+        avg_b = sum(p[2] for p in pixels) // len(pixels)
+        
+        return (avg_r, avg_g, avg_b)
+    
+    def _get_adaptive_text_color(self, bg_color: Tuple[int, int, int]) -> Tuple[int, int, int]:
+        """
+        Get optimal text color based on background brightness.
+        
+        Uses WCAG luminance calculations to ensure readability.
+        
+        Args:
+            bg_color: Background RGB color
+            
+        Returns:
+            RGB tuple for text color (black or white)
+        """
+        from src.utils.color_utils import get_contrasting_color
+        return get_contrasting_color(bg_color, high_contrast=True)
+    
+    def _adjust_color_opacity(self, color: Tuple[int, int, int], opacity: float) -> Tuple[int, int, int]:
+        """
+        Create a lighter/darker version of a color by blending with background.
+        
+        For dark text (black), opacity < 1 makes it lighter (more gray).
+        For light text (white), opacity < 1 also makes it more gray.
+        
+        Args:
+            color: Base RGB color
+            opacity: Opacity factor (0.0 to 1.0)
+            
+        Returns:
+            Adjusted RGB tuple
+        """
+        # Determine if color is dark or light
+        luminance = (0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2]) / 255
+        
+        if luminance > 0.5:
+            # Light color - blend towards white
+            blend_target = (255, 255, 255)
+        else:
+            # Dark color - blend towards white (for better visibility)
+            blend_target = (255, 255, 255)
+        
+        # Blend
+        r = int(color[0] * opacity + blend_target[0] * (1 - opacity))
+        g = int(color[1] * opacity + blend_target[1] * (1 - opacity))
+        b = int(color[2] * opacity + blend_target[2] * (1 - opacity))
+        
+        return (r, g, b)
+    
     def _format_quote_text(self, quote: str, is_arabic: bool = None) -> str:
         """Format quote with proper quotation marks based on language
 
@@ -1021,20 +1139,59 @@ class EnhancedSocialImageGenerator:
             bbox = font.getbbox(processed_test)
             text_width = bbox[2] - bbox[0]
 
-            if text_width <= max_width:
+            # Add 5% tolerance for Arabic text to prevent edge cases
+            if text_width <= max_width * 1.05:
                 current_line = test_line
             else:
                 if current_line:
                     lines.append(current_line.strip())
                     current_line = word
                 else:
-                    # Single word is too long, force it
-                    lines.append(word)
+                    # Single word is too long - wrap at character level
+                    # IMPORTANT: Use character-level wrapping to prevent truncation
+                    char_lines = self._wrap_word_character_level(word, font, int(max_width * 0.95))
+                    if len(char_lines) > 1:
+                        # Add all but last to lines
+                        lines.extend(char_lines[:-1])
+                        current_line = char_lines[-1]
+                    else:
+                        # If character-level wrapping didn't help, force the word anyway
+                        # This prevents truncation at the cost of slight overflow
+                        lines.append(word)
 
         if current_line:
             lines.append(current_line.strip())
 
         return lines
+    
+    def _wrap_word_character_level(self, word: str, font: ImageFont.ImageFont, max_width: int) -> List[str]:
+        """Wrap a single long word at character level for Farsi/Arabic"""
+        if not word:
+            return []
+        
+        lines = []
+        current_chars = ""
+        
+        for char in word:
+            test_chars = current_chars + char
+            processed = self._prepare_arabic_text(test_chars)
+            bbox = font.getbbox(processed)
+            text_width = bbox[2] - bbox[0]
+            
+            if text_width <= max_width:
+                current_chars = test_chars
+            else:
+                if current_chars:
+                    lines.append(current_chars)
+                    current_chars = char
+                else:
+                    # Even single character is too long - force it
+                    lines.append(char)
+        
+        if current_chars:
+            lines.append(current_chars)
+        
+        return lines if lines else [word]
     
     def _wrap_latin_text(self, text: str, font: ImageFont.ImageFont, max_width: int) -> List[str]:
         """Wrap Latin text using word-based approach"""
@@ -1123,6 +1280,20 @@ class EnhancedSocialImageGenerator:
         """Draw multi-line text with design system spacing and typography"""
         draw = ImageDraw.Draw(img)
         
+        # NORMALIZE NUMERALS: Convert Farsi numerals to Western when appropriate
+        import re
+        
+        # Detect if text is primarily English/Latin
+        has_arabic_script = bool(re.search(r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]', text))
+        has_latin_script = bool(re.search(r'[A-Za-z]', text))
+        has_persian_numerals = bool(re.search(r'[۰-۹]', text))
+        
+        # CRITICAL FIX: If text is primarily Latin (English) but contains Farsi numerals, convert them
+        # This handles cases where font selection or other processing introduced Persian numerals
+        if has_latin_script and not has_arabic_script and has_persian_numerals:
+            from src.utils.text_utils import convert_persian_to_western_numerals
+            text = convert_persian_to_western_numerals(text)
+        
         # Use design system defaults if not specified
         if max_width is None:
             max_width = self._get_max_text_width()
@@ -1155,6 +1326,9 @@ class EnhancedSocialImageGenerator:
         shadow_color = tuple(int(c) for c in shadow_color_raw)  # Ensure integers
         
         for i, line in enumerate(lines):
+            # Sanitize line to remove problematic characters
+            line = self._sanitize_special_characters(line)
+            
             # For Arabic text, the line is already processed in _wrap_arabic_text
             # For Latin text, no processing is needed
             display_line = line if not self._is_arabic_text(line) else self._prepare_arabic_text(line)
@@ -1719,6 +1893,12 @@ class EnhancedSocialImageGenerator:
         # Add scrim overlay for better text contrast
         img = self._draw_scrim_overlay(img, 'medium')
         
+        # ADAPTIVE COLORS: Sample background to determine optimal text colors
+        bg_sample = self._sample_background_color(img, 'center')
+        text_primary = self._get_adaptive_text_color(bg_sample)
+        text_secondary = self._adjust_color_opacity(text_primary, 0.7)  # 70% opacity version
+        text_muted = self._adjust_color_opacity(text_primary, 0.5)  # 50% opacity version
+        
         # Get design system values
         safe_margins = self._get_safe_margins()
         max_text_width = self._get_max_text_width()
@@ -1751,7 +1931,7 @@ class EnhancedSocialImageGenerator:
         quote_width, quote_height = self._draw_multiline_text(
             img, formatted_quote, quote_font,
             (quote_x_position, quote_start_y),
-            tuple(self.config.get('design_system', {}).get('colors', {}).get('text', {}).get('primary', [255, 255, 255])),
+            text_primary,  # Use adaptive color
             max_width=max_text_width,
             alignment='center' if not is_arabic else 'right',
             justify=False,
@@ -1773,8 +1953,8 @@ class EnhancedSocialImageGenerator:
                 author_font_size = int(author_font_size * 1.3)
             author_font = self._get_font_with_size('subheadline', author_font_size)
             
-            # Draw attribution with proper alignment
-            text_color = tuple(self.config.get('design_system', {}).get('colors', {}).get('text', {}).get('secondary', [203, 213, 225]))
+            # Draw attribution with proper alignment using adaptive color
+            text_color = text_secondary  # Use adaptive secondary color
             
             # Position author text correctly for RTL with proper margins
             if is_arabic:
@@ -1805,7 +1985,7 @@ class EnhancedSocialImageGenerator:
             brand_font = self._get_font_with_size('brand', brand_font_size)
 
             brand_y = self.config['canvas_height'] - safe_margins['bottom']
-            brand_color = tuple(self.config.get('design_system', {}).get('colors', {}).get('text', {}).get('muted', [148, 163, 184]))
+            brand_color = text_muted  # Use adaptive muted color
 
             self._draw_enhanced_text(img, brand, brand_font,
                                    (self.config['canvas_width'] // 2, brand_y),
@@ -1817,6 +1997,16 @@ class EnhancedSocialImageGenerator:
         """Generate an article excerpt layout with title and body text"""
         img = self._create_enhanced_background()
         
+        # Add gradient noise and scrim for better contrast
+        img = self._add_gradient_noise(img)
+        img = self._draw_scrim_overlay(img, 'medium')
+        
+        # ADAPTIVE COLORS: Sample background to determine optimal text colors
+        bg_sample = self._sample_background_color(img, 'center')
+        text_primary = self._get_adaptive_text_color(bg_sample)
+        text_secondary = self._adjust_color_opacity(text_primary, 0.7)  # 70% opacity version
+        text_muted = self._adjust_color_opacity(text_primary, 0.5)  # 50% opacity version
+        
         # Configure text area
         margin = 60
         content_width = self.config['canvas_width'] - (2 * margin)
@@ -1826,7 +2016,7 @@ class EnhancedSocialImageGenerator:
         title_width, title_height = self._draw_multiline_text(
             img, title, self.fonts['headline'],
             (self.config['canvas_width'] // 2, title_y),
-            (255, 255, 255), content_width, line_spacing=12,
+            text_primary, content_width, line_spacing=12,
             alignment='center', justify=False
         )
         
@@ -1838,7 +2028,7 @@ class EnhancedSocialImageGenerator:
         body_width, body_height = self._draw_multiline_text(
             img, body, body_font,
             (margin, body_y),
-            (230, 230, 230), content_width, line_spacing=18,
+            text_secondary, content_width, line_spacing=18,
             alignment='left', justify=True
         )
         
@@ -1846,7 +2036,7 @@ class EnhancedSocialImageGenerator:
         if brand:
             self._draw_enhanced_text(img, brand, self.fonts['brand'],
                                    (self.config['canvas_width'] // 2, self.config['canvas_height'] - 100),
-                                   (255, 255, 255), centered=True)
+                                   text_muted, centered=True)
         
         return img
 
@@ -1863,6 +2053,12 @@ class EnhancedSocialImageGenerator:
         safe_margins = self._get_safe_margins()
         max_text_width = self._get_max_text_width()
         
+        # ADAPTIVE COLORS: Sample background to determine optimal text colors
+        bg_sample = self._sample_background_color(img, 'center')
+        text_primary = self._get_adaptive_text_color(bg_sample)
+        text_secondary = self._adjust_color_opacity(text_primary, 0.7)  # 70% opacity version
+        text_muted = self._adjust_color_opacity(text_primary, 0.5)  # 50% opacity version
+        
         # Title - use H1 from design system
         title_font_size = self._get_font_size('h1')
         title_font = self._get_font_with_size('headline', title_font_size)
@@ -1876,7 +2072,7 @@ class EnhancedSocialImageGenerator:
         title_width, title_height = self._draw_multiline_text(
             img, title, title_font,
             (self.config['canvas_width'] // 2, title_y),
-            tuple(self.config.get('design_system', {}).get('colors', {}).get('text', {}).get('primary', [255, 255, 255])),
+            text_primary,  # Use adaptive color instead of hardcoded white
             max_width=max_text_width,
             alignment='center' if not is_title_arabic else 'right',
             justify=False,
@@ -1892,12 +2088,11 @@ class EnhancedSocialImageGenerator:
         desc_font = self._get_font_with_size('subheadline', desc_font_size)
         
         is_desc_arabic = self._is_arabic_text(description)
-        text_secondary_color = tuple(self.config.get('design_system', {}).get('colors', {}).get('text', {}).get('secondary', [203, 213, 225]))
         
         desc_width, desc_height = self._draw_multiline_text(
             img, description, desc_font,
             (self.config['canvas_width'] // 2, desc_y),
-            text_secondary_color,
+            text_secondary,  # Use adaptive secondary color
             max_width=max_text_width,
             alignment='center' if not is_desc_arabic else 'right',
             justify=False,
@@ -1927,7 +2122,7 @@ class EnhancedSocialImageGenerator:
             brand_font = self._get_font_with_size('brand', brand_font_size)
             
             brand_y = self.config['canvas_height'] - safe_margins['bottom']
-            brand_color = tuple(self.config.get('design_system', {}).get('colors', {}).get('text', {}).get('muted', [148, 163, 184]))
+            brand_color = text_muted  # Use adaptive muted color
             
             self._draw_enhanced_text(img, brand, brand_font,
                                    (self.config['canvas_width'] // 2, brand_y),
@@ -1939,6 +2134,16 @@ class EnhancedSocialImageGenerator:
         """Generate a list layout with title and bulleted items"""
         img = self._create_enhanced_background()
         
+        # Add gradient noise and scrim for better contrast
+        img = self._add_gradient_noise(img)
+        img = self._draw_scrim_overlay(img, 'medium')
+        
+        # ADAPTIVE COLORS: Sample background to determine optimal text colors
+        bg_sample = self._sample_background_color(img, 'center')
+        text_primary = self._get_adaptive_text_color(bg_sample)
+        text_secondary = self._adjust_color_opacity(text_primary, 0.7)  # 70% opacity version
+        text_muted = self._adjust_color_opacity(text_primary, 0.5)  # 50% opacity version
+        
         # Configure text area
         margin = 80
         content_width = self.config['canvas_width'] - (2 * margin)
@@ -1948,7 +2153,7 @@ class EnhancedSocialImageGenerator:
         title_width, title_height = self._draw_multiline_text(
             img, title, self.fonts['headline'],
             (self.config['canvas_width'] // 2, title_y),
-            (255, 255, 255), content_width, line_spacing=12,
+            text_primary, content_width, line_spacing=12,
             alignment='center', justify=False
         )
         
@@ -1965,7 +2170,7 @@ class EnhancedSocialImageGenerator:
             # Draw bullet
             self._draw_enhanced_text(img, bullet, item_font,
                                    (bullet_x, item_y),
-                                   (255, 255, 255), centered=False)
+                                   text_primary, centered=False)
             
             # Draw item text
             item_x = bullet_x + 40
@@ -1974,7 +2179,7 @@ class EnhancedSocialImageGenerator:
             item_width, item_height = self._draw_multiline_text(
                 img, item, item_font,
                 (item_x, item_y),
-                (230, 230, 230), item_max_width, line_spacing=12,
+                text_secondary, item_max_width, line_spacing=12,
                 alignment='left', justify=False
             )
             
@@ -1984,7 +2189,7 @@ class EnhancedSocialImageGenerator:
         if brand:
             self._draw_enhanced_text(img, brand, self.fonts['brand'],
                                    (self.config['canvas_width'] // 2, self.config['canvas_height'] - 100),
-                                   (255, 255, 255), centered=True)
+                                   text_muted, centered=True)
         
         return img
 
@@ -1992,6 +2197,16 @@ class EnhancedSocialImageGenerator:
                                   person_title: str = None, brand: str = None) -> Image.Image:
         """Generate a testimonial layout with quote and person information"""
         img = self._create_enhanced_background()
+        
+        # Add gradient noise and scrim for better contrast
+        img = self._add_gradient_noise(img)
+        img = self._draw_scrim_overlay(img, 'medium')
+        
+        # ADAPTIVE COLORS: Sample background to determine optimal text colors
+        bg_sample = self._sample_background_color(img, 'center')
+        text_primary = self._get_adaptive_text_color(bg_sample)
+        text_secondary = self._adjust_color_opacity(text_primary, 0.7)  # 70% opacity version
+        text_muted = self._adjust_color_opacity(text_primary, 0.5)  # 50% opacity version
         
         # Configure text area
         margin = 70
@@ -2007,7 +2222,7 @@ class EnhancedSocialImageGenerator:
         quote_width, quote_height = self._draw_multiline_text(
             img, formatted_quote, quote_font,
             (self.config['canvas_width'] // 2, quote_y),
-            (255, 255, 255), content_width, line_spacing=18,
+            text_primary, content_width, line_spacing=18,
             alignment='center', justify=False
         )
         
@@ -2018,7 +2233,7 @@ class EnhancedSocialImageGenerator:
         
         self._draw_enhanced_text(img, person_name, name_font,
                                (self.config['canvas_width'] // 2, name_y),
-                               (255, 255, 255), centered=True)
+                               text_primary, centered=True)
         
         # Person title/company
         if person_title:
@@ -2028,13 +2243,13 @@ class EnhancedSocialImageGenerator:
             
             self._draw_enhanced_text(img, person_title, title_font,
                                    (self.config['canvas_width'] // 2, title_y),
-                                   (200, 200, 200), centered=True)
+                                   text_secondary, centered=True)
         
         # Brand at bottom
         if brand:
             self._draw_enhanced_text(img, brand, self.fonts['brand'],
                                    (self.config['canvas_width'] // 2, self.config['canvas_height'] - 100),
-                                   (255, 255, 255), centered=True)
+                                   text_muted, centered=True)
         
         return img
 
