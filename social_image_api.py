@@ -1523,6 +1523,7 @@ def generate_post():
         "assets": {
             "hero_image_url": "...", // optional
             "logo_image_url": "...", // optional
+            "watermark_url": "...", // optional
             // ... other assets
         },
         "background": {
@@ -1534,7 +1535,62 @@ def generate_post():
         "options": {
             "width": 1080,
             "height": 1350,
+            // Background removal options (NEW!)
+            "remove_hero_background": true|false,      // Remove background from hero/product images
+            "remove_watermark_background": true|false, // Remove background from watermark/logo
+            "bg_removal_method": "auto|edge|color",    // auto (AI), edge (enhanced), color (threshold)
+            "bg_removal_alpha_matting": true|false,    // Enable alpha matting for rembg (better edges)
+            "bg_color_tolerance": 30,                  // Tolerance for color method
             // ... layout-specific options
+        }
+    }
+    
+    Background Removal Examples:
+    
+    Example 1: Product Showcase with AI Background Removal
+    {
+        "layout_type": "product_showcase",
+        "content": {
+            "product_name": "Leather Bag",
+            "price": "$99.99"
+        },
+        "assets": {
+            "hero_image_url": "/uploads/main/product.png"
+        },
+        "background": {
+            "mode": "gradient",
+            "gradient": {
+                "colors": [[240, 240, 250], [255, 255, 255]],
+                "direction": "vertical"
+            }
+        },
+        "options": {
+            "remove_hero_background": true,      // Remove product background with AI
+            "bg_removal_method": "auto"          // Uses rembg AI (best quality)
+        }
+    }
+    
+    Example 2: Headline Promo with Watermark (No Background)
+    {
+        "layout_type": "headline_promo",
+        "content": {
+            "headline": "Summer Sale",
+            "subheadline": "Up to 50% Off"
+        },
+        "assets": {
+            "hero_image_url": "/uploads/main/hero.png",
+            "watermark_url": "/uploads/watermark/logo.png"
+        },
+        "background": {
+            "mode": "image",
+            "image_url": "/uploads/background/beach.jpg"
+        },
+        "options": {
+            "remove_hero_background": false,       // Keep hero image background
+            "remove_watermark_background": true,   // Remove logo/watermark background
+            "bg_removal_method": "auto",
+            "watermark_position": "bottom-right",
+            "watermark_size": 150
         }
     }
 

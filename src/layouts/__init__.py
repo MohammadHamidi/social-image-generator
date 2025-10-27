@@ -58,5 +58,11 @@ import_layouts()
 # Also explicitly import known layouts to ensure they're registered
 try:
     from . import headline_promo
-except ImportError:
+    from . import product_showcase
+    from . import testimonial
+    from . import checklist
+    from . import split_image_text
+    from . import caption_box
+    from . import overlay_text
+except ImportError as e:
     pass  # Layout not available yet

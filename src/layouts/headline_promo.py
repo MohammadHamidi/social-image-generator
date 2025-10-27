@@ -10,14 +10,14 @@ This layout is designed for promotional content with:
 Perfect for: Sales, announcements, launches, promotions
 """
 
-from .base import TextLayoutEngine, register_layout
+from .base import PhotoLayoutEngine, register_layout
 from PIL import Image, ImageDraw, ImageFont
 from typing import List, Tuple, Optional
 import os
 
 
 @register_layout
-class HeadlinePromoLayout(TextLayoutEngine):
+class HeadlinePromoLayout(PhotoLayoutEngine):
     """
     Headline Promo Layout - Big headline with optional CTA
 
@@ -84,6 +84,9 @@ class HeadlinePromoLayout(TextLayoutEngine):
 
         # Add text content
         img = self._add_text_content(img, has_hero)
+        
+        # Add watermark if provided
+        img = self._add_watermark(img)
 
         return [img]
 
@@ -94,71 +97,64 @@ class HeadlinePromoLayout(TextLayoutEngine):
         Returns:
             Background image
         """
-        bg_mode = self.background.get('mode', 'gradient')
+        # Use the base class method which supports gradient, solid_color, and image modes
+        return self._create_background_from_config()
 
-        if bg_mode == 'solid_color':
-            color = tuple(self.background.get('color', [52, 73, 94]))
-            return Image.new('RGB', (self.canvas_width, self.canvas_height), color)
-
-        elif bg_mode == 'gradient':
-            # Use existing gradient from enhanced_social_generator
-            # For now, create a simple gradient
-            return self._create_simple_gradient()
-
-        else:
-            # Default gradient
-            return self._create_simple_gradient()
-
-    def _create_simple_gradient(self) -> Image.Image:
-        """Create a simple vertical gradient."""
-        gradient_config = self.background.get('gradient', {})
-        colors = gradient_config.get('colors', [[255, 107, 107], [253, 187, 45]])
-        direction = gradient_config.get('direction', 'vertical')
-
-        img = Image.new('RGB', (self.canvas_width, self.canvas_height))
-        draw = ImageDraw.Draw(img)
-
-        color1 = tuple(colors[0]) if len(colors) > 0 else (255, 107, 107)
-        color2 = tuple(colors[1]) if len(colors) > 1 else (253, 187, 45)
-
-        if direction == 'vertical':
-            for y in range(self.canvas_height):
-                ratio = y / self.canvas_height
-                r = int(color1[0] * (1 - ratio) + color2[0] * ratio)
-                g = int(color1[1] * (1 - ratio) + color2[1] * ratio)
-                b = int(color1[2] * (1 - ratio) + color2[2] * ratio)
-                draw.line([(0, y), (self.canvas_width, y)], fill=(r, g, b))
-        else:  # horizontal
-            for x in range(self.canvas_width):
-                ratio = x / self.canvas_width
-                r = int(color1[0] * (1 - ratio) + color2[0] * ratio)
-                g = int(color1[1] * (1 - ratio) + color2[1] * ratio)
-                b = int(color1[2] * (1 - ratio) + color2[2] * ratio)
-                draw.line([(x, 0), (x, self.canvas_height)], fill=(r, g, b))
-
-        return img
+    def _create_product_shadow(self, product_img: Image.Image) -> Image.Image:
+        """
+        Create soft shadow for product image.
+        
+        Args:
+            product_img: Product image to create shadow for
+            
+        Returns:
+            RGBA image with shadow effect
+        """
+        from PIL import ImageFilter
+        
+        # Create shadow layer
+        shadow = Image.new('RGBA', product_img.size, (0, 0, 0, 0))
+        shadow_draw = ImageDraw.Draw(shadow)
+        
+        # Draw semi-transparent black rectangle
+        shadow_draw.rectangle([(0, 0), product_img.size], fill=(0, 0, 0, 100))
+        
+        # Apply blur for soft shadow effect
+        shadow = shadow.filter(ImageFilter.GaussianBlur(15))
+        
+        return shadow
 
     def _add_hero_image(self, canvas: Image.Image) -> Image.Image:
         """
         Add hero image to canvas.
-
+        
         Args:
             canvas: Base canvas
-
+        
         Returns:
             Canvas with hero image added
         """
         from ..asset_manager import get_asset_manager
 
+        hero_url = self.assets.get('hero_image_url')
+        print(f"🖼️  Adding hero image from: {hero_url}")
+
         try:
             asset_manager = get_asset_manager()
+            print(f"📂 Loading hero image asset: {hero_url}")
             hero_image = asset_manager.load_asset(
                 self.assets['hero_image_url'],
-                role='hero_image'
+                role='hero_image',
+                remove_bg=self.remove_hero_bg,
+                bg_removal_method=self.bg_removal_method,
+                alpha_matting=self.bg_alpha_matting,
+                color_tolerance=self.bg_color_tolerance
             )
+            print(f"✅ Hero image loaded successfully! Size: {hero_image.size}")
 
             # Determine layout mode
             layout_mode = self.options.get('hero_layout', 'background')
+            print(f"   Layout mode: {layout_mode}")
 
             if layout_mode == 'background':
                 # Use hero as full background with overlay
@@ -167,6 +163,7 @@ class HeadlinePromoLayout(TextLayoutEngine):
                     (self.canvas_width, self.canvas_height),
                     focus='center'
                 )
+                print(f"   Hero fitted to canvas: {hero_fitted.size}")
 
                 # Create overlay for text contrast
                 overlay = Image.new('RGBA', (self.canvas_width, self.canvas_height),
@@ -175,6 +172,7 @@ class HeadlinePromoLayout(TextLayoutEngine):
                 # Composite
                 canvas = hero_fitted.convert('RGB')
                 canvas.paste(overlay, (0, 0), overlay)
+                print(f"✅ Hero image applied as background with overlay")
 
             elif layout_mode == 'side':
                 # Place hero on left side, text on right
@@ -185,11 +183,53 @@ class HeadlinePromoLayout(TextLayoutEngine):
                     focus='center'
                 )
                 canvas.paste(hero_fitted, (0, 0))
+                print(f"✅ Hero image placed on side")
+
+            elif layout_mode == 'product':
+                # New mode: product positioned in lower-center with shadow
+                max_product_height = int(self.canvas_height * 0.5)  # 50% of canvas
+                max_product_width = int(self.canvas_width * 0.6)
+                
+                # Fit product maintaining aspect ratio
+                hero_fitted = asset_manager.fit_to_bounds(
+                    hero_image,
+                    (max_product_width, max_product_height),
+                    maintain_aspect=True
+                )
+                print(f"✅ Product fitted to bounds: {hero_fitted.size}")
+                
+                # Position in lower-center
+                x_pos = (self.canvas_width - hero_fitted.width) // 2
+                y_pos = int(self.canvas_height * 0.45)  # Start at 45% down
+                
+                # Add shadow if enabled
+                if self.options.get('product_shadow', True):
+                    shadow = self._create_product_shadow(hero_fitted)
+                    shadow_x = x_pos + 10
+                    shadow_y = y_pos + 10
+                    
+                    # Create composite image for proper shadow rendering
+                    shadow_canvas = Image.new('RGBA', (self.canvas_width, self.canvas_height), (0, 0, 0, 0))
+                    shadow_canvas.paste(shadow, (shadow_x, shadow_y), shadow)
+                    shadow_canvas = shadow_canvas.convert('RGB')
+                    
+                    # Composite shadow on main canvas
+                    canvas = Image.alpha_composite(canvas.convert('RGBA'), shadow_canvas.convert('RGBA')).convert('RGB')
+                    print(f"✅ Product shadow applied")
+                
+                # Paste product on top
+                if hero_fitted.mode == 'RGBA':
+                    canvas.paste(hero_fitted, (x_pos, y_pos), hero_fitted)
+                else:
+                    canvas.paste(hero_fitted, (x_pos, y_pos))
+                print(f"✅ Product positioned at ({x_pos}, {y_pos})")
 
             return canvas
 
         except Exception as e:
-            print(f"Warning: Could not load hero image: {e}")
+            print(f"❌ ERROR: Could not load hero image: {e}")
+            import traceback
+            traceback.print_exc()
             return canvas
 
     def _add_text_content(self, img: Image.Image, has_hero: bool) -> Image.Image:
@@ -204,6 +244,14 @@ class HeadlinePromoLayout(TextLayoutEngine):
             Image with text added
         """
         draw = ImageDraw.Draw(img)
+
+        # Add text contrast overlay if enabled
+        if self.options.get('text_overlay', True):
+            overlay_height = int(self.canvas_height * 0.4)  # Top 40%
+            overlay = Image.new('RGBA', (self.canvas_width, overlay_height), 
+                               (0, 0, 0, int(255 * 0.3)))  # 30% black
+            img.paste(overlay, (0, 0), overlay)
+            print(f"✅ Text contrast overlay applied")
 
         # Get content
         headline = self.content['headline']
@@ -237,7 +285,11 @@ class HeadlinePromoLayout(TextLayoutEngine):
             max_text_width, is_rtl
         )
 
-        start_y = (self.canvas_height - total_height) // 2
+        # Use rule-of-thirds positioning for background layout
+        if hero_layout == 'background':
+            start_y = int(self.canvas_height * 0.15)  # 15% from top for better hierarchy
+        else:
+            start_y = (self.canvas_height - total_height) // 2  # Keep centered for side layout
 
         current_y = start_y
 
@@ -285,8 +337,15 @@ class HeadlinePromoLayout(TextLayoutEngine):
             font_path = os.path.join(font_dir, 'NotoSans-Bold.ttf')
 
         try:
-            return ImageFont.truetype(font_path, font_size)
-        except:
+            if not os.path.exists(font_path):
+                print(f"❌ Font not found: {font_path}")
+                return ImageFont.load_default()
+            
+            font = ImageFont.truetype(font_path, font_size)
+            print(f"✅ Loaded font: {os.path.basename(font_path)} at size {font_size}")
+            return font
+        except Exception as e:
+            print(f"❌ Font loading error: {e}")
             return ImageFont.load_default()
 
     def _get_subheadline_font(self, is_rtl: bool) -> ImageFont.ImageFont:
@@ -304,8 +363,15 @@ class HeadlinePromoLayout(TextLayoutEngine):
             font_path = os.path.join(font_dir, 'NotoSans-Regular.ttf')
 
         try:
-            return ImageFont.truetype(font_path, font_size)
-        except:
+            if not os.path.exists(font_path):
+                print(f"❌ Font not found: {font_path}")
+                return ImageFont.load_default()
+            
+            font = ImageFont.truetype(font_path, font_size)
+            print(f"✅ Loaded font: {os.path.basename(font_path)} at size {font_size}")
+            return font
+        except Exception as e:
+            print(f"❌ Font loading error: {e}")
             return ImageFont.load_default()
 
     def _get_cta_font(self) -> ImageFont.ImageFont:

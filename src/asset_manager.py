@@ -7,6 +7,7 @@ Handles:
 - Smart cropping and resizing
 - Format conversion
 - Asset validation
+- AI-powered background removal
 """
 
 from typing import Optional, Dict, Tuple, Union
@@ -17,6 +18,22 @@ import hashlib
 import time
 from io import BytesIO
 from urllib.parse import urlparse
+import numpy as np
+
+# Background removal imports
+try:
+    from rembg import remove as rembg_remove
+    REMBG_AVAILABLE = True
+except ImportError:
+    REMBG_AVAILABLE = False
+    rembg_remove = None
+
+# Try to import scipy for advanced image processing
+try:
+    from scipy import ndimage
+    SCIPY_AVAILABLE = True
+except ImportError:
+    SCIPY_AVAILABLE = False
 
 
 class AssetManager:
@@ -73,14 +90,22 @@ class AssetManager:
     def load_asset(self,
                    url_or_path: str,
                    role: str = 'unknown',
-                   use_cache: bool = True) -> Image.Image:
+                   use_cache: bool = True,
+                   remove_bg: bool = False,
+                   bg_removal_method: str = 'auto',
+                   alpha_matting: bool = True,
+                   color_tolerance: int = 30) -> Image.Image:
         """
-        Load image asset from URL or local path.
+        Load image asset from URL or local path with optional background removal.
 
         Args:
             url_or_path: URL or local file path
             role: Asset role (hero_image, logo, etc.) for logging
             use_cache: Whether to use cache (default: True)
+            remove_bg: Whether to remove background (default: False)
+            bg_removal_method: Method to use ('auto', 'edge', 'color')
+            alpha_matting: Enable alpha matting for rembg
+            color_tolerance: Tolerance for color threshold method
 
         Returns:
             PIL Image object
@@ -88,9 +113,12 @@ class AssetManager:
         Raises:
             ValueError: If asset cannot be loaded
         """
-        # Check memory cache first
+        # Generate cache key with background removal suffix if needed
         cache_key = self._get_cache_key(url_or_path)
+        if remove_bg:
+            cache_key += f"_nobg_{bg_removal_method}"
 
+        # Check memory cache first
         if use_cache and cache_key in self._memory_cache:
             return self._memory_cache[cache_key].copy()
 
@@ -107,6 +135,16 @@ class AssetManager:
                 image = self._load_from_url(url_or_path)
             else:
                 image = self._load_from_path(url_or_path)
+
+            # Apply background removal if requested
+            if remove_bg:
+                print(f"🎨 Removing background from {role} (method: {bg_removal_method})")
+                image = self.remove_background(
+                    image,
+                    method=bg_removal_method,
+                    alpha_matting=alpha_matting,
+                    color_tolerance=color_tolerance
+                )
 
             # Cache it
             if use_cache:
@@ -159,7 +197,7 @@ class AssetManager:
 
     def _load_from_path(self, path: str) -> Image.Image:
         """
-        Load image from local file path.
+        Load image from local file path with intelligent path resolution.
 
         Args:
             path: Local file path
@@ -170,11 +208,14 @@ class AssetManager:
         Raises:
             ValueError: If file doesn't exist or can't be loaded
         """
-        if not os.path.exists(path):
-            raise ValueError(f"File not found: {path}")
+        # Try to resolve the path intelligently
+        resolved_path = self._resolve_path(path)
+        
+        if not os.path.exists(resolved_path):
+            raise ValueError(f"File not found: {path} (tried: {resolved_path})")
 
         try:
-            image = Image.open(path)
+            image = Image.open(resolved_path)
 
             # Convert to RGB if needed
             if image.mode not in ('RGB', 'RGBA'):
@@ -183,7 +224,57 @@ class AssetManager:
             return image
 
         except Exception as e:
-            raise ValueError(f"Failed to open image file {path}: {str(e)}")
+            raise ValueError(f"Failed to open image file {resolved_path}: {str(e)}")
+    
+    def _resolve_path(self, path: str) -> str:
+        """
+        Resolve path variations for Docker container and local filesystems.
+        
+        Tries multiple path variations:
+        1. Original path
+        2. If starts with /uploads/, try /app/uploads/...
+        3. If starts with /app/uploads/, try uploads/... (relative)
+        
+        Args:
+            path: Original path
+            
+        Returns:
+            Resolved path that exists, or original path if none found
+        """
+        # Try original path first
+        if os.path.exists(path):
+            print(f"✅ Path resolved (original): {path}")
+            return path
+        
+        print(f"🔍 Path not found, trying variations: {path}")
+        
+        # Try prepending /app if path starts with /uploads/
+        if path.startswith('/uploads/'):
+            app_path = '/app' + path
+            print(f"  Trying: {app_path}")
+            if os.path.exists(app_path):
+                print(f"✅ Path resolved: {app_path}")
+                return app_path
+        
+        # Try removing /app prefix if path starts with /app/uploads/
+        if path.startswith('/app/uploads/'):
+            relative_path = path[5:]  # Remove '/app/' prefix
+            print(f"  Trying: {relative_path}")
+            if os.path.exists(relative_path):
+                print(f"✅ Path resolved: {relative_path}")
+                return relative_path
+        
+        # Try as relative from current working directory
+        if path.startswith('/'):
+            relative_path = path.lstrip('/')
+            print(f"  Trying: {relative_path}")
+            if os.path.exists(relative_path):
+                print(f"✅ Path resolved: {relative_path}")
+                return relative_path
+        
+        # No variation worked, return original
+        print(f"❌ No path variation worked, using original: {path}")
+        return path
 
     def _load_from_disk_cache(self, cache_key: str) -> Optional[Image.Image]:
         """
@@ -347,6 +438,253 @@ class AssetManager:
         new_height = int(img_height * ratio)
 
         return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+    def remove_background(self,
+                          image: Image.Image,
+                          method: str = 'auto',
+                          alpha_matting: bool = True,
+                          color_tolerance: int = 30) -> Image.Image:
+        """
+        Remove background from image using specified method.
+        
+        Args:
+            image: PIL Image to process
+            method: Background removal method ('auto', 'edge', 'color')
+            alpha_matting: Enable alpha matting for rembg (better edges)
+            color_tolerance: Tolerance for color threshold method
+            
+        Returns:
+            PIL Image with background removed (RGBA mode)
+        """
+        # For images that already have transparency, check if we should preserve it
+        if image.mode == 'RGBA':
+            alpha_channel = image.split()[-1]
+            if alpha_channel.getextrema()[0] < 255:  # Has some transparency
+                print("ℹ️  Image already has transparency, processing anyway")
+        
+        if method == 'auto':
+            return self._remove_background_rembg(image, alpha_matting)
+        elif method == 'edge':
+            return self._remove_background_edge(image)
+        elif method == 'color':
+            return self._remove_background_color(image, color_tolerance)
+        else:
+            # Default to auto
+            return self._remove_background_rembg(image, alpha_matting)
+    
+    def _remove_background_rembg(self, image: Image.Image, alpha_matting: bool = True) -> Image.Image:
+        """
+        Remove background using rembg AI with fallback to edge detection.
+        
+        Args:
+            image: PIL Image to process
+            alpha_matting: Enable alpha matting for better edge quality
+            
+        Returns:
+            PIL Image with background removed
+        """
+        if not REMBG_AVAILABLE:
+            print("⚠️  rembg not available, using enhanced edge detection")
+            return self._remove_background_edge(image)
+        
+        try:
+            print("🤖 Using rembg AI for professional background removal...")
+            
+            # Convert to bytes
+            img_byte_arr = BytesIO()
+            image.save(img_byte_arr, format='PNG')
+            img_byte_arr = img_byte_arr.getvalue()
+            
+            # Use rembg with optimized settings
+            result_bytes = rembg_remove(
+                img_byte_arr,
+                session=None,  # Auto-select best model
+                alpha_matting=alpha_matting,
+                alpha_matting_foreground_threshold=240,
+                alpha_matting_background_threshold=10,
+                alpha_matting_erode_size=10
+            )
+            
+            result_image = Image.open(BytesIO(result_bytes)).convert('RGBA')
+            
+            # Verify the result is valid
+            if result_image.size[0] > 0 and result_image.size[1] > 0:
+                # Check if we have meaningful transparency
+                alpha = result_image.split()[-1]
+                alpha_stats = alpha.getextrema()
+                has_transparency = alpha_stats[0] < 255
+                
+                if has_transparency:
+                    print("✅ rembg AI background removal successful!")
+                    print(f"   Alpha range: {alpha_stats}")
+                    
+                    # Calculate foreground percentage
+                    alpha_array = np.array(alpha)
+                    total_pixels = alpha_array.size
+                    transparent_pixels = np.sum(alpha_array == 0)
+                    opaque_pixels = total_pixels - transparent_pixels
+                    opaque_ratio = opaque_pixels / total_pixels
+                    print(f"   Opaque ratio: {opaque_ratio:.1%}")
+                    return result_image
+                else:
+                    print("⚠️  rembg completed but no transparency detected, using enhanced edge detection")
+                    return self._remove_background_edge(image)
+            else:
+                print("⚠️  rembg returned invalid image, using enhanced edge detection")
+                return self._remove_background_edge(image)
+        
+        except Exception as e:
+            print(f"❌ rembg failed ({e}), using enhanced edge detection")
+            return self._remove_background_edge(image)
+    
+    def _remove_background_edge(self, image: Image.Image) -> Image.Image:
+        """
+        Remove background using enhanced edge detection with multiple strategies.
+        
+        Args:
+            image: PIL Image to process
+            
+        Returns:
+            PIL Image with background removed
+        """
+        # Convert to RGBA
+        img = image.convert('RGBA')
+        data = np.array(img)
+        
+        print(f"🎨 Using enhanced edge detection for background removal")
+        
+        # Strategy 1: Multi-sample background detection
+        corners = [
+            data[0, 0][:3],      # Top-left
+            data[0, -1][:3],     # Top-right
+            data[-1, 0][:3],     # Bottom-left
+            data[-1, -1][:3],    # Bottom-right
+            data[10, 10][:3] if data.shape[0] > 20 and data.shape[1] > 20 else data[0, 0][:3],
+            data[10, -11][:3] if data.shape[0] > 20 and data.shape[1] > 20 else data[0, -1][:3],
+            data[-11, 10][:3] if data.shape[0] > 20 and data.shape[1] > 20 else data[-1, 0][:3],
+            data[-11, -11][:3] if data.shape[0] > 20 and data.shape[1] > 20 else data[-1, -1][:3]
+        ]
+        
+        # Remove outliers and get robust background color
+        corner_colors = np.array(corners)
+        mean_color = np.mean(corner_colors, axis=0)
+        std_color = np.std(corner_colors, axis=0)
+        
+        # Use robust background color (exclude outliers)
+        valid_corners = []
+        for corner in corners:
+            if np.all(np.abs(corner - mean_color) < 2 * std_color):
+                valid_corners.append(corner)
+        
+        if valid_corners:
+            bg_color = np.mean(valid_corners, axis=0).astype(int)
+        else:
+            bg_color = mean_color.astype(int)
+        
+        print(f"   Detected background color: {bg_color}")
+        
+        # Strategy 2: Adaptive thresholding
+        color_variance = np.var(data[:, :, :3])
+        base_threshold = max(25, min(80, color_variance / 200))
+        threshold = base_threshold
+        min_foreground_ratio = 0.12
+        
+        print(f"   Adaptive threshold: {threshold:.1f}")
+        
+        # Strategy 3: Enhanced color difference calculation
+        diff = np.sqrt(np.sum((data[:, :, :3] - bg_color) ** 2, axis=2))
+        
+        # Apply Gaussian blur to reduce noise
+        if SCIPY_AVAILABLE:
+            diff = ndimage.gaussian_filter(diff, sigma=0.5)
+        
+        # Strategy 4: Create mask
+        primary_mask = diff > threshold
+        secondary_mask = diff > (threshold * 0.7)
+        mask = primary_mask.copy()
+        
+        # Refine edges using secondary mask
+        edge_pixels = primary_mask & ~secondary_mask
+        if np.any(edge_pixels):
+            mask = secondary_mask
+        
+        # Strategy 5: Morphological cleanup
+        if SCIPY_AVAILABLE:
+            # Close small holes
+            mask = ndimage.binary_closing(mask, structure=np.ones((2, 2)))
+            # Remove small noise
+            mask = ndimage.binary_opening(mask, structure=np.ones((2, 2)))
+            # Fill larger holes
+            mask = ndimage.binary_fill_holes(mask)
+        
+        # Strategy 6: Quality assessment
+        foreground_pixels = np.sum(mask)
+        total_pixels = mask.size
+        foreground_ratio = foreground_pixels / total_pixels
+        
+        print(f"   Final foreground ratio: {foreground_ratio:.2f}")
+        
+        # Quality check - try progressive relaxation if needed
+        if foreground_ratio < min_foreground_ratio:
+            print(f"⚠️  Insufficient foreground detected ({foreground_ratio:.2f}), trying relaxation")
+            
+            for relax_factor in [0.8, 0.6, 0.4]:
+                relaxed_threshold = threshold * relax_factor
+                relaxed_mask = diff > relaxed_threshold
+                
+                if SCIPY_AVAILABLE:
+                    relaxed_mask = ndimage.binary_closing(relaxed_mask, structure=np.ones((2, 2)))
+                    relaxed_mask = ndimage.binary_fill_holes(relaxed_mask)
+                
+                relaxed_foreground = np.sum(relaxed_mask)
+                relaxed_ratio = relaxed_foreground / total_pixels
+                
+                if relaxed_ratio >= min_foreground_ratio:
+                    print(f"   Using relaxed threshold: {relaxed_threshold:.1f} (ratio: {relaxed_ratio:.2f})")
+                    mask = relaxed_mask
+                    foreground_ratio = relaxed_ratio
+                    break
+            
+            if foreground_ratio < min_foreground_ratio:
+                print("   ⚠️  Unable to achieve good background removal, keeping original")
+                return img
+        
+        # Apply final mask
+        data[:, :, 3] = mask.astype(np.uint8) * 255
+        
+        print(f"✅ Enhanced background removal completed - {foreground_ratio:.2f} foreground retained")
+        return Image.fromarray(data, 'RGBA')
+    
+    def _remove_background_color(self, image: Image.Image, tolerance: int = 30) -> Image.Image:
+        """
+        Remove background using color threshold (assumes white/solid background).
+        
+        Args:
+            image: PIL Image to process
+            tolerance: Color difference tolerance
+            
+        Returns:
+            PIL Image with background removed
+        """
+        img = image.convert('RGBA')
+        data = np.array(img)
+        
+        # Assume white background (most common)
+        white_bg = np.array([255, 255, 255])
+        
+        print(f"🎨 Using color threshold method (tolerance: {tolerance})")
+        
+        # Create mask based on color difference
+        diff = np.sqrt(np.sum((data[:, :, :3] - white_bg) ** 2, axis=2))
+        mask = diff > tolerance
+        
+        # Apply mask
+        data[:, :, 3] = mask.astype(np.uint8) * 255
+        
+        foreground_ratio = np.sum(mask) / mask.size
+        print(f"✅ Color threshold removal completed - {foreground_ratio:.2f} foreground retained")
+        
+        return Image.fromarray(data, 'RGBA')
 
     def clear_cache(self):
         """Clear in-memory cache."""

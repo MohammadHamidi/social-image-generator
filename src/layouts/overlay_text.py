@@ -98,7 +98,11 @@ class OverlayTextLayout(PhotoLayoutEngine):
             bg_image = asset_manager.load_asset(
                 self.assets['background_image_url'],
                 role='background',
-                use_cache=True
+                use_cache=True,
+                remove_bg=self.remove_hero_bg,
+                bg_removal_method=self.bg_removal_method,
+                alpha_matting=self.bg_alpha_matting,
+                color_tolerance=self.bg_color_tolerance
             )
 
             # Fit to canvas size (cover mode - fill and crop)

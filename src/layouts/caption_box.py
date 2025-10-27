@@ -154,7 +154,11 @@ class CaptionBoxLayout(PhotoLayoutEngine):
             hero_image = asset_manager.load_asset(
                 self.assets['hero_image_url'],
                 role='hero',
-                use_cache=True
+                use_cache=True,
+                remove_bg=self.remove_hero_bg,
+                bg_removal_method=self.bg_removal_method,
+                alpha_matting=self.bg_alpha_matting,
+                color_tolerance=self.bg_color_tolerance
             )
 
             return hero_image

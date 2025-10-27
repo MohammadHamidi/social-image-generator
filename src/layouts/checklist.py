@@ -90,44 +90,8 @@ class ChecklistLayout(TextLayoutEngine):
 
     def _create_background(self) -> Image.Image:
         """Create background based on configuration."""
-        bg_mode = self.background.get('mode', 'gradient')
-
-        if bg_mode == 'solid_color':
-            color = tuple(self.background.get('color', [255, 247, 230]))
-            return Image.new('RGB', (self.canvas_width, self.canvas_height), color)
-        elif bg_mode == 'gradient':
-            return self._create_simple_gradient()
-        else:
-            return self._create_simple_gradient()
-
-    def _create_simple_gradient(self) -> Image.Image:
-        """Create a simple gradient background."""
-        gradient_config = self.background.get('gradient', {})
-        colors = gradient_config.get('colors', [[255, 247, 230], [255, 255, 255]])
-        direction = gradient_config.get('direction', 'vertical')
-
-        img = Image.new('RGB', (self.canvas_width, self.canvas_height))
-        draw = ImageDraw.Draw(img)
-
-        color1 = tuple(colors[0]) if len(colors) > 0 else (255, 247, 230)
-        color2 = tuple(colors[1]) if len(colors) > 1 else (255, 255, 255)
-
-        if direction == 'vertical':
-            for y in range(self.canvas_height):
-                ratio = y / self.canvas_height
-                r = int(color1[0] * (1 - ratio) + color2[0] * ratio)
-                g = int(color1[1] * (1 - ratio) + color2[1] * ratio)
-                b = int(color1[2] * (1 - ratio) + color2[2] * ratio)
-                draw.line([(0, y), (self.canvas_width, y)], fill=(r, g, b))
-        else:
-            for x in range(self.canvas_width):
-                ratio = x / self.canvas_width
-                r = int(color1[0] * (1 - ratio) + color2[0] * ratio)
-                g = int(color1[1] * (1 - ratio) + color2[1] * ratio)
-                b = int(color1[2] * (1 - ratio) + color2[2] * ratio)
-                draw.line([(x, 0), (x, self.canvas_height)], fill=(r, g, b))
-
-        return img
+        # Use the base class method which supports gradient, solid_color, and image modes
+        return self._create_background_from_config()
 
     def _add_checklist_content(self, canvas: Image.Image) -> Image.Image:
         """Add title and checklist items."""

@@ -98,45 +98,8 @@ class SplitImageTextLayout(PhotoLayoutEngine):
 
     def _create_background(self) -> Image.Image:
         """Create background based on configuration."""
-        bg_mode = self.background.get('mode', 'solid_color')
-
-        if bg_mode == 'solid_color':
-            color = tuple(self.background.get('color', [255, 255, 255]))
-            return Image.new('RGB', (self.canvas_width, self.canvas_height), color)
-        elif bg_mode == 'gradient':
-            return self._create_simple_gradient()
-        else:
-            # Default white background for split layouts
-            return Image.new('RGB', (self.canvas_width, self.canvas_height), (255, 255, 255))
-
-    def _create_simple_gradient(self) -> Image.Image:
-        """Create a simple gradient background."""
-        gradient_config = self.background.get('gradient', {})
-        colors = gradient_config.get('colors', [[240, 240, 240], [255, 255, 255]])
-        direction = gradient_config.get('direction', 'vertical')
-
-        img = Image.new('RGB', (self.canvas_width, self.canvas_height))
-        draw = ImageDraw.Draw(img)
-
-        color1 = tuple(colors[0]) if len(colors) > 0 else (240, 240, 240)
-        color2 = tuple(colors[1]) if len(colors) > 1 else (255, 255, 255)
-
-        if direction == 'vertical':
-            for y in range(self.canvas_height):
-                ratio = y / self.canvas_height
-                r = int(color1[0] * (1 - ratio) + color2[0] * ratio)
-                g = int(color1[1] * (1 - ratio) + color2[1] * ratio)
-                b = int(color1[2] * (1 - ratio) + color2[2] * ratio)
-                draw.line([(0, y), (self.canvas_width, y)], fill=(r, g, b))
-        else:
-            for x in range(self.canvas_width):
-                ratio = x / self.canvas_width
-                r = int(color1[0] * (1 - ratio) + color2[0] * ratio)
-                g = int(color1[1] * (1 - ratio) + color2[1] * ratio)
-                b = int(color1[2] * (1 - ratio) + color2[2] * ratio)
-                draw.line([(x, 0), (x, self.canvas_height)], fill=(r, g, b))
-
-        return img
+        # Use the base class method which supports gradient, solid_color, and image modes
+        return self._create_background_from_config()
 
     def _add_split_image(self, canvas: Image.Image, split_direction: str,
                         image_position: str, image_ratio: float) -> Image.Image:
@@ -147,7 +110,11 @@ class SplitImageTextLayout(PhotoLayoutEngine):
             asset_manager = get_asset_manager()
             hero_image = asset_manager.load_asset(
                 self.assets['hero_image_url'],
-                role='hero_image'
+                role='hero_image',
+                remove_bg=self.remove_hero_bg,
+                bg_removal_method=self.bg_removal_method,
+                alpha_matting=self.bg_alpha_matting,
+                color_tolerance=self.bg_color_tolerance
             )
 
             if split_direction == 'vertical':

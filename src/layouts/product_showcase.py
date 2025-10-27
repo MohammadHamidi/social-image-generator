@@ -108,61 +108,37 @@ class ProductShowcaseLayout(PhotoLayoutEngine):
 
         # Add product information
         canvas = self._add_product_info(canvas, layout_style)
+        
+        # Add watermark if provided
+        canvas = self._add_watermark(canvas)
 
         return [canvas]
 
     def _create_background(self) -> Image.Image:
         """Create background based on configuration."""
-        bg_mode = self.background.get('mode', 'gradient')
-
-        if bg_mode == 'solid_color':
-            color = tuple(self.background.get('color', [255, 255, 255]))
-            return Image.new('RGB', (self.canvas_width, self.canvas_height), color)
-        elif bg_mode == 'gradient':
-            return self._create_simple_gradient()
-        else:
-            # Default light gradient for product showcase
-            return self._create_simple_gradient()
-
-    def _create_simple_gradient(self) -> Image.Image:
-        """Create a simple gradient background."""
-        gradient_config = self.background.get('gradient', {})
-        colors = gradient_config.get('colors', [[240, 240, 245], [255, 255, 255]])
-        direction = gradient_config.get('direction', 'vertical')
-
-        img = Image.new('RGB', (self.canvas_width, self.canvas_height))
-        draw = ImageDraw.Draw(img)
-
-        color1 = tuple(colors[0]) if len(colors) > 0 else (240, 240, 245)
-        color2 = tuple(colors[1]) if len(colors) > 1 else (255, 255, 255)
-
-        if direction == 'vertical':
-            for y in range(self.canvas_height):
-                ratio = y / self.canvas_height
-                r = int(color1[0] * (1 - ratio) + color2[0] * ratio)
-                g = int(color1[1] * (1 - ratio) + color2[1] * ratio)
-                b = int(color1[2] * (1 - ratio) + color2[2] * ratio)
-                draw.line([(0, y), (self.canvas_width, y)], fill=(r, g, b))
-        else:
-            for x in range(self.canvas_width):
-                ratio = x / self.canvas_width
-                r = int(color1[0] * (1 - ratio) + color2[0] * ratio)
-                g = int(color1[1] * (1 - ratio) + color2[1] * ratio)
-                b = int(color1[2] * (1 - ratio) + color2[2] * ratio)
-                draw.line([(x, 0), (x, self.canvas_height)], fill=(r, g, b))
-
-        return img
+        # Use the base class method which supports gradient, solid_color, and image modes
+        return self._create_background_from_config()
 
     def _add_product_image(self, canvas: Image.Image, layout_style: str) -> Image.Image:
         """Add product image to canvas."""
         from ..asset_manager import get_asset_manager
 
+        product_url = self.assets.get('hero_image_url')
+        print(f"🛍️  Adding product image from: {product_url}")
+
         try:
             asset_manager = get_asset_manager()
+            print(f"📂 Loading product image asset: {product_url}")
             product_image = asset_manager.load_asset(
                 self.assets['hero_image_url'],
-                role='hero_image'
+                role='hero_image',
+                remove_bg=self.remove_hero_bg,
+                bg_removal_method=self.bg_removal_method,
+                alpha_matting=self.bg_alpha_matting,
+                color_tolerance=self.bg_color_tolerance
             )
+            print(f"✅ Product image loaded successfully! Size: {product_image.size}")
+            print(f"   Layout style: {layout_style}")
 
             if layout_style == 'center':
                 # Center layout - product image in upper-middle area
@@ -173,12 +149,14 @@ class ProductShowcaseLayout(PhotoLayoutEngine):
                     image_size,
                     maintain_aspect=True
                 )
+                print(f"   Product fitted to size: {fitted_image.size}")
 
                 # Center horizontally, position in upper third
                 x_pos = (self.canvas_width - fitted_image.width) // 2
                 y_pos = 150
 
                 canvas.paste(fitted_image, (x_pos, y_pos))
+                print(f"   Placed at position: ({x_pos}, {y_pos})")
 
             else:  # side layout
                 # Side layout - product on left, info on right
@@ -189,17 +167,22 @@ class ProductShowcaseLayout(PhotoLayoutEngine):
                     self.canvas_height - 200,
                     maintain_aspect=True
                 )
+                print(f"   Product fitted to size: {fitted_image.size}")
 
                 # Center in left half
                 x_pos = (image_width - fitted_image.width) // 2
                 y_pos = (self.canvas_height - fitted_image.height) // 2
 
                 canvas.paste(fitted_image, (x_pos, y_pos))
+                print(f"   Placed at position: ({x_pos}, {y_pos})")
 
+            print(f"✅ Product image added successfully!")
             return canvas
 
         except Exception as e:
-            print(f"Warning: Could not load product image: {e}")
+            print(f"❌ ERROR: Could not load product image: {e}")
+            import traceback
+            traceback.print_exc()
             return canvas
 
     def _add_logo(self, canvas: Image.Image) -> Image.Image:

@@ -66,6 +66,13 @@ class LayoutEngine(ABC):
         self.canvas_width = self.options.get('width', self.DEFAULT_WIDTH)
         self.canvas_height = self.options.get('height', self.DEFAULT_HEIGHT)
 
+        # Background removal settings
+        self.remove_hero_bg = self.options.get('remove_hero_background', False)
+        self.remove_watermark_bg = self.options.get('remove_watermark_background', False)
+        self.bg_removal_method = self.options.get('bg_removal_method', 'auto')
+        self.bg_alpha_matting = self.options.get('bg_removal_alpha_matting', True)
+        self.bg_color_tolerance = self.options.get('bg_color_tolerance', 30)
+
         # Validate inputs
         self._validate()
 
@@ -128,6 +135,192 @@ class LayoutEngine(ABC):
             New PIL Image object
         """
         return Image.new('RGB', (self.canvas_width, self.canvas_height), background_color)
+
+    def _create_background_from_config(self) -> Image.Image:
+        """
+        Create background from configuration.
+        
+        Supports:
+        - solid_color: Single color background
+        - gradient: Gradient background
+        - image: Custom background image
+        
+        Returns:
+            PIL Image object with background
+        """
+        bg_mode = self.background.get('mode', 'gradient')
+        
+        if bg_mode == 'solid_color':
+            color = tuple(self.background.get('color', [255, 255, 255]))
+            return self._create_canvas(color)
+        
+        elif bg_mode == 'gradient':
+            return self._create_gradient_background()
+        
+        elif bg_mode == 'image':
+            return self._create_image_background()
+        
+        else:
+            # Default gradient
+            return self._create_gradient_background()
+
+    def _create_gradient_background(self) -> Image.Image:
+        """
+        Create gradient background from configuration.
+        
+        Returns:
+            PIL Image with gradient background
+        """
+        gradient_config = self.background.get('gradient', {})
+        colors = gradient_config.get('colors', [[240, 240, 245], [255, 255, 255]])
+        direction = gradient_config.get('direction', 'vertical')
+        
+        img = Image.new('RGB', (self.canvas_width, self.canvas_height))
+        draw = ImageDraw.Draw(img)
+        
+        color1 = tuple(colors[0]) if len(colors) > 0 else (240, 240, 245)
+        color2 = tuple(colors[1]) if len(colors) > 1 else (255, 255, 255)
+        
+        if direction == 'vertical':
+            for y in range(self.canvas_height):
+                ratio = y / self.canvas_height
+                r = int(color1[0] * (1 - ratio) + color2[0] * ratio)
+                g = int(color1[1] * (1 - ratio) + color2[1] * ratio)
+                b = int(color1[2] * (1 - ratio) + color2[2] * ratio)
+                draw.line([(0, y), (self.canvas_width, y)], fill=(r, g, b))
+        else:  # horizontal
+            for x in range(self.canvas_width):
+                ratio = x / self.canvas_width
+                r = int(color1[0] * (1 - ratio) + color2[0] * ratio)
+                g = int(color1[1] * (1 - ratio) + color2[1] * ratio)
+                b = int(color1[2] * (1 - ratio) + color2[2] * ratio)
+                draw.line([(x, 0), (x, self.canvas_height)], fill=(r, g, b))
+        
+        return img
+
+    def _create_image_background(self) -> Image.Image:
+        """
+        Load and fit custom background image to canvas.
+        
+        Supports pattern overlay blending with optional gradient base.
+        
+        Returns:
+            PIL Image with background image fitted to canvas
+        """
+        image_url = self.background.get('image_url')
+        pattern_opacity = self.background.get('pattern_opacity', 0.15)  # Default 15%
+        blend_with_gradient = self.background.get('blend_with_gradient', False)
+        
+        if not image_url:
+            # Fallback to gradient if no image URL provided
+            print("⚠️ Warning: image_url not provided for image mode, falling back to gradient")
+            return self._create_gradient_background()
+        
+        print(f"📂 Attempting to load background image from: {image_url}")
+        try:
+            from src.asset_manager import get_asset_manager
+            
+            asset_manager = get_asset_manager()
+            print(f"📂 AssetManager created, loading asset: {image_url}")
+            bg_image = asset_manager.load_asset(image_url, role='background', use_cache=True)
+            print(f"✅ Background image loaded successfully! Size: {bg_image.size}")
+            
+            # Fit image to canvas size (cover mode - fill and crop)
+            fitted_image = self._fit_image(
+                bg_image,
+                self.canvas_width,
+                self.canvas_height,
+                mode='cover'
+            )
+            
+            print(f"✅ Background image fitted to canvas size: {fitted_image.size}")
+            
+            # If blend_with_gradient is True, create layered composition
+            if blend_with_gradient:
+                gradient_config = self.background.get('gradient', {
+                    'colors': [[240, 240, 245], [255, 255, 255]],
+                    'direction': 'vertical'
+                })
+                
+                # Create base gradient
+                base = self._create_gradient_background()
+                print(f"✅ Base gradient created")
+                
+                # Convert pattern to RGBA and adjust opacity
+                pattern = fitted_image.convert('RGBA')
+                alpha = pattern.split()[3]
+                # Apply opacity multiplier
+                alpha = alpha.point(lambda p: int(p * pattern_opacity))
+                pattern.putalpha(alpha)
+                
+                # Composite pattern over gradient
+                base.paste(pattern, (0, 0), pattern)
+                print(f"✅ Pattern composited over gradient at {pattern_opacity*100:.1f}% opacity")
+                return base
+            else:
+                return fitted_image.convert('RGB')
+        
+        except Exception as e:
+            print(f"❌ ERROR: Could not load background image: {e}")
+            import traceback
+            traceback.print_exc()
+            print("Falling back to gradient background")
+            return self._create_gradient_background()
+
+    def _fit_image(self, image: Image.Image,
+                   target_width: int,
+                   target_height: int,
+                   mode: str = 'cover') -> Image.Image:
+        """
+        Fit image to target dimensions.
+        
+        Args:
+            image: Source image
+            target_width: Target width
+            target_height: Target height
+            mode: 'cover' (fill and crop) or 'contain' (fit inside)
+        
+        Returns:
+            Fitted image
+        """
+        img_width, img_height = image.size
+        target_ratio = target_width / target_height
+        img_ratio = img_width / img_height
+        
+        if mode == 'cover':
+            # Fill the space and crop if needed
+            if img_ratio > target_ratio:
+                # Image is wider, fit to height
+                new_height = target_height
+                new_width = int(new_height * img_ratio)
+            else:
+                # Image is taller, fit to width
+                new_width = target_width
+                new_height = int(new_width / img_ratio)
+            
+            # Resize
+            resized = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            
+            # Crop to exact size (center crop)
+            left = (new_width - target_width) // 2
+            top = (new_height - target_height) // 2
+            right = left + target_width
+            bottom = top + target_height
+            
+            return resized.crop((left, top, right, bottom))
+        
+        else:  # contain
+            # Fit inside the space
+            if img_ratio > target_ratio:
+                # Image is wider, fit to width
+                new_width = target_width
+                new_height = int(new_width / img_ratio)
+            else:
+                # Image is taller, fit to height
+                new_height = target_height
+                new_width = int(new_height * img_ratio)
+            
+            return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
     def _is_rtl_text(self, text: str) -> bool:
         """
@@ -287,6 +480,104 @@ class PhotoLayoutEngine(LayoutEngine):
     """
 
     LAYOUT_CATEGORY = "photo_text_mixed"
+
+    def _add_watermark(self, canvas: Image.Image) -> Image.Image:
+        """
+        Add watermark/logo to canvas if provided.
+        
+        Args:
+            canvas: Base canvas
+        
+        Returns:
+            Canvas with watermark added
+        """
+        # Check if watermark is provided in assets
+        watermark_url = self.assets.get('watermark_url')
+        if not watermark_url:
+            print("ℹ️  No watermark_url found in assets, skipping watermark")
+            return canvas
+        
+        print(f"🎯 Adding watermark from: {watermark_url}")
+        
+        try:
+            from src.asset_manager import get_asset_manager
+            
+            asset_manager = get_asset_manager()
+            print(f"📂 Loading watermark asset: {watermark_url}")
+            watermark_image = asset_manager.load_asset(
+                watermark_url,
+                role='watermark',
+                use_cache=True,
+                remove_bg=self.remove_watermark_bg,
+                bg_removal_method=self.bg_removal_method,
+                alpha_matting=self.bg_alpha_matting,
+                color_tolerance=self.bg_color_tolerance
+            )
+            print(f"✅ Watermark image loaded successfully! Size: {watermark_image.size}")
+            
+            # Get watermark settings from options
+            position = self.options.get('watermark_position', 'bottom-right')
+            size = self.options.get('watermark_size', 120)
+            opacity = self.options.get('watermark_opacity', 1.0)
+            
+            print(f"   Position: {position}, Size: {size}, Opacity: {opacity}")
+            
+            # Resize watermark
+            if watermark_image.width > watermark_image.height:
+                new_width = size
+                new_height = int(size * watermark_image.height / watermark_image.width)
+            else:
+                new_height = size
+                new_width = int(size * watermark_image.width / watermark_image.height)
+            
+            watermark_resized = watermark_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            print(f"   Resized to: {watermark_resized.size}")
+            
+            # Calculate position
+            margin = 40
+            if position == 'bottom-right':
+                pos_x = self.canvas_width - new_width - margin
+                pos_y = self.canvas_height - new_height - margin
+            elif position == 'top-right':
+                pos_x = self.canvas_width - new_width - margin
+                pos_y = margin
+            elif position == 'bottom-left':
+                pos_x = margin
+                pos_y = self.canvas_height - new_height - margin
+            elif position == 'top-left':
+                pos_x = margin
+                pos_y = margin
+            elif position == 'bottom-center':
+                pos_x = (self.canvas_width - new_width) // 2
+                pos_y = self.canvas_height - new_height - margin
+            else:
+                # Default to bottom-right
+                pos_x = self.canvas_width - new_width - margin
+                pos_y = self.canvas_height - new_height - margin
+            
+            print(f"   Placing at position: ({pos_x}, {pos_y})")
+            
+            # Apply opacity if needed
+            if opacity < 1.0 and watermark_resized.mode == 'RGBA':
+                alpha = watermark_resized.split()[3]
+                alpha = alpha.point(lambda p: int(p * opacity))
+                watermark_resized.putalpha(alpha)
+            
+            # Convert to RGBA if needed
+            if watermark_resized.mode != 'RGBA':
+                watermark_resized = watermark_resized.convert('RGBA')
+            
+            # Paste watermark
+            canvas.paste(watermark_resized, (pos_x, pos_y), watermark_resized)
+            
+            print(f"✅ Watermark added successfully!")
+            return canvas
+        
+        except Exception as e:
+            print(f"❌ ERROR: Could not load watermark: {e}")
+            import traceback
+            traceback.print_exc()
+            return canvas
 
     def _fit_image(self, image: Image.Image,
                    target_width: int,

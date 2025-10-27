@@ -37,7 +37,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir --retries 3 --timeout 300 -r requirements.txt || \
     (echo "❌ pip install failed, retrying with different options..." && \
-     pip install --no-cache-dir --ignore-installed --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt)
+    pip install --no-cache-dir --ignore-installed --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt)
 
 # Verify Python packages were installed correctly
 RUN python -c "import flask, PIL, numpy; print('✅ Core packages installed successfully')" || \
@@ -61,8 +61,8 @@ RUN test -f social_image_api.py && \
 RUN chmod +x fix-permissions.sh
 
 # Create directories and set proper permissions
-RUN mkdir -p uploads/main uploads/background uploads/watermark output generated && \
-    chown -R appuser:appuser uploads output generated
+RUN mkdir -p uploads/main uploads/background uploads/watermark output generated cache/assets && \
+    chown -R appuser:appuser uploads output generated cache
 
 # Set environment variables
 ENV PYTHONPATH=/app/src
