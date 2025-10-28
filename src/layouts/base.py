@@ -63,8 +63,8 @@ class LayoutEngine(ABC):
         self.options = options or {}
 
         # Canvas settings
-        self.canvas_width = self.options.get('width', self.DEFAULT_WIDTH)
-        self.canvas_height = self.options.get('height', self.DEFAULT_HEIGHT)
+        self.canvas_width = int(self.options.get('width', self.DEFAULT_WIDTH))
+        self.canvas_height = int(self.options.get('height', self.DEFAULT_HEIGHT))
 
         # Background removal settings
         self.remove_hero_bg = self.options.get('remove_hero_background', False)
@@ -175,11 +175,19 @@ class LayoutEngine(ABC):
         colors = gradient_config.get('colors', [[240, 240, 245], [255, 255, 255]])
         direction = gradient_config.get('direction', 'vertical')
         
+        # Ensure colors are lists of lists, convert to tuples
+        if isinstance(colors[0], (list, tuple)):
+            color1 = tuple(int(c) for c in colors[0])
+        else:
+            color1 = (240, 240, 245)
+            
+        if len(colors) > 1 and isinstance(colors[1], (list, tuple)):
+            color2 = tuple(int(c) for c in colors[1])
+        else:
+            color2 = (255, 255, 255)
+        
         img = Image.new('RGB', (self.canvas_width, self.canvas_height))
         draw = ImageDraw.Draw(img)
-        
-        color1 = tuple(colors[0]) if len(colors) > 0 else (240, 240, 245)
-        color2 = tuple(colors[1]) if len(colors) > 1 else (255, 255, 255)
         
         if direction == 'vertical':
             for y in range(self.canvas_height):
@@ -523,12 +531,12 @@ class PhotoLayoutEngine(LayoutEngine):
             print(f"   Position: {position}, Size: {size}, Opacity: {opacity}")
             
             # Resize watermark
-            if watermark_image.width > watermark_image.height:
+            if watermark_image.size[0] > watermark_image.size[1]:
                 new_width = size
-                new_height = int(size * watermark_image.height / watermark_image.width)
+                new_height = int(size * watermark_image.size[1] / watermark_image.size[0])
             else:
                 new_height = size
-                new_width = int(size * watermark_image.width / watermark_image.height)
+                new_width = int(size * watermark_image.size[0] / watermark_image.size[1])
             
             watermark_resized = watermark_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
             print(f"   Resized to: {watermark_resized.size}")

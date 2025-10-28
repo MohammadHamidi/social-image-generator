@@ -199,7 +199,7 @@ class HeadlinePromoLayout(PhotoLayoutEngine):
                 print(f"✅ Product fitted to bounds: {hero_fitted.size}")
                 
                 # Position in lower-center
-                x_pos = (self.canvas_width - hero_fitted.width) // 2
+                x_pos = (self.canvas_width - hero_fitted.size[0]) // 2
                 y_pos = int(self.canvas_height * 0.45)  # Start at 45% down
                 
                 # Add shadow if enabled

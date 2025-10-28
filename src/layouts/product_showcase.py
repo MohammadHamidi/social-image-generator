@@ -142,7 +142,7 @@ class ProductShowcaseLayout(PhotoLayoutEngine):
 
             if layout_style == 'center':
                 # Center layout - product image in upper-middle area
-                image_size = min(800, int(self.canvas_width * 0.7))
+                image_size = int(min(800, self.canvas_width * 0.7))
                 fitted_image = asset_manager.resize_to_fit(
                     product_image,
                     image_size,
@@ -152,7 +152,7 @@ class ProductShowcaseLayout(PhotoLayoutEngine):
                 print(f"   Product fitted to size: {fitted_image.size}")
 
                 # Center horizontally, position in upper third
-                x_pos = (self.canvas_width - fitted_image.width) // 2
+                x_pos = (self.canvas_width - fitted_image.size[0]) // 2
                 y_pos = 150
 
                 canvas.paste(fitted_image, (x_pos, y_pos))
@@ -170,8 +170,8 @@ class ProductShowcaseLayout(PhotoLayoutEngine):
                 print(f"   Product fitted to size: {fitted_image.size}")
 
                 # Center in left half
-                x_pos = (image_width - fitted_image.width) // 2
-                y_pos = (self.canvas_height - fitted_image.height) // 2
+                x_pos = (image_width - fitted_image.size[0]) // 2
+                y_pos = (self.canvas_height - fitted_image.size[1]) // 2
 
                 canvas.paste(fitted_image, (x_pos, y_pos))
                 print(f"   Placed at position: ({x_pos}, {y_pos})")
@@ -201,7 +201,7 @@ class ProductShowcaseLayout(PhotoLayoutEngine):
             logo_fitted = asset_manager.resize_to_fit(logo, logo_size, logo_size)
 
             # Position in top-right with padding
-            x_pos = self.canvas_width - logo_fitted.width - 40
+            x_pos = self.canvas_width - logo_fitted.size[0] - 40
             y_pos = 40
 
             # Convert to RGBA if needed
