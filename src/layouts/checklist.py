@@ -137,7 +137,7 @@ class ChecklistLayout(TextLayoutEngine):
         )
 
         # Add spacing
-        current_y += 80
+        current_y += 100
 
         # Draw checklist items
         for idx, item in enumerate(items):
@@ -150,7 +150,7 @@ class ChecklistLayout(TextLayoutEngine):
                 check_style, is_checked, idx + 1, is_rtl
             )
 
-            current_y += 20  # Spacing between items
+            current_y += 35  # Spacing between items for better readability
 
         # Draw brand if provided
         if brand:
@@ -163,55 +163,30 @@ class ChecklistLayout(TextLayoutEngine):
         return canvas
 
     def _get_title_font(self, is_rtl: bool) -> ImageFont.ImageFont:
-        """Get font for title."""
+        """Get font for title using font manager."""
         font_size = self.options.get('title_size', 64)
         if is_rtl:
             font_size = int(font_size * 1.1)
-
-        font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                               'assets', 'fonts')
-
-        if is_rtl:
-            font_path = os.path.join(font_dir, 'IRANYekanBoldFaNum.ttf')
-        else:
-            font_path = os.path.join(font_dir, 'NotoSans-Bold.ttf')
-
-        try:
-            return ImageFont.truetype(font_path, font_size)
-        except:
-            return ImageFont.load_default()
+        
+        title_text = self.content.get('title', '')
+        return self._get_font(title_text, font_size, 'bold')
 
     def _get_item_font(self, is_rtl: bool) -> ImageFont.ImageFont:
-        """Get font for items."""
+        """Get font for items using font manager."""
         font_size = self.options.get('item_size', 36)
         if is_rtl:
             font_size = int(font_size * 1.1)
-
-        font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                               'assets', 'fonts')
-
-        if is_rtl:
-            font_path = os.path.join(font_dir, 'IRANYekanRegularFaNum.ttf')
-        else:
-            font_path = os.path.join(font_dir, 'NotoSans-Regular.ttf')
-
-        try:
-            return ImageFont.truetype(font_path, font_size)
-        except:
-            return ImageFont.load_default()
+        
+        # Use first item to detect language
+        items = self.content.get('items', [])
+        sample_text = items[0] if items else ''
+        return self._get_font(sample_text, font_size, 'regular')
 
     def _get_brand_font(self) -> ImageFont.ImageFont:
-        """Get font for brand."""
+        """Get font for brand using font manager."""
         font_size = 24
-
-        font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                               'assets', 'fonts')
-        font_path = os.path.join(font_dir, 'NotoSans-Regular.ttf')
-
-        try:
-            return ImageFont.truetype(font_path, font_size)
-        except:
-            return ImageFont.load_default()
+        brand_text = self.content.get('brand', '')
+        return self._get_font(brand_text, font_size, 'regular')
 
     def _draw_title(self, img: Image.Image, text: str, font: ImageFont.ImageFont,
                    x: int, y: int, max_width: int, color: Tuple[int, int, int],
@@ -247,7 +222,7 @@ class ChecklistLayout(TextLayoutEngine):
                             check_color: Tuple[int, int, int],
                             check_style: str, is_checked: bool, number: int,
                             is_rtl: bool) -> int:
-        """Draw a single checklist item. Returns new Y position."""
+        """Draw a single checklist item with drawn shapes. Returns new Y position."""
         draw = ImageDraw.Draw(img)
 
         # Prepare text
@@ -256,34 +231,66 @@ class ChecklistLayout(TextLayoutEngine):
         else:
             display_text = text
 
-        # Get check/bullet symbol
-        if check_style == 'checkmark':
-            symbol = "✓" if is_checked else "☐"
-            symbol_color = check_color if is_checked else text_color
-        elif check_style == 'number':
-            symbol = f"{number}."
-            symbol_color = check_color
-        else:  # bullet
-            symbol = "•"
-            symbol_color = check_color
-
-        # Measure symbol
-        symbol_bbox = font.getbbox(symbol)
-        symbol_width = symbol_bbox[2] - symbol_bbox[0]
-
-        # Draw symbol
-        draw.text((x, y), symbol, font=font, fill=symbol_color)
-
-        # Draw text
-        text_x = x + symbol_width + 20
-        text_max_width = max_width - symbol_width - 20
-
+        # Measure text for proper alignment
         bbox = font.getbbox(display_text)
         text_height = bbox[3] - bbox[1]
+        
+        # Shape configuration
+        box_size = 32
+        checkbox_margin = 15
+        
+        # Calculate positions
+        if check_style == 'number':
+            # For numbers, use text rendering
+            symbol = f"{number}."
+            symbol_bbox = font.getbbox(symbol)
+            symbol_width = symbol_bbox[2] - symbol_bbox[0]
+            draw.text((x, y), symbol, font=font, fill=check_color)
+            text_x = x + symbol_width + 20
+        else:
+            # Draw shapes for checkboxes and bullets
+            if check_style == 'checkmark':
+                # Draw checkbox
+                checkbox_y = y + (text_height - box_size) // 2
+                
+                if is_checked:
+                    # Filled checkbox with checkmark
+                    draw.rectangle([x, checkbox_y, x + box_size, checkbox_y + box_size],
+                                 fill=check_color, outline=check_color, width=2)
+                    # Draw checkmark
+                    self._draw_checkmark(draw, x, checkbox_y, box_size, (255, 255, 255))
+                else:
+                    # Empty checkbox
+                    draw.rectangle([x, checkbox_y, x + box_size, checkbox_y + box_size],
+                                 fill=None, outline=text_color, width=2)
+            else:
+                # Draw bullet
+                bullet_size = 10
+                bullet_y = y + text_height // 2
+                draw.ellipse([x, bullet_y - bullet_size//2,
+                            x + bullet_size, bullet_y + bullet_size//2],
+                           fill=check_color)
+                box_size = bullet_size  # Adjust spacing for bullets
+            
+            text_x = x + box_size + 25
 
+        # Draw text
+        text_max_width = max_width - (text_x - x)
         draw.text((text_x, y), display_text, font=font, fill=text_color)
 
         return y + text_height
+    
+    def _draw_checkmark(self, draw: ImageDraw.ImageDraw, x: int, y: int, size: int,
+                       color: Tuple[int, int, int]):
+        """Draw a checkmark inside a checkbox."""
+        # Checkmark as a polyline
+        padding = size * 0.2
+        check_points = [
+            (x + padding + size * 0.2, y + size * 0.5),
+            (x + padding + size * 0.4, y + size * 0.7),
+            (x + size - padding, y + padding)
+        ]
+        draw.line(check_points, fill=color, width=3, joint='curve')
 
     def _draw_centered_text(self, img: Image.Image, text: str, font: ImageFont.ImageFont,
                            y: int, color: Tuple[int, int, int]):

@@ -60,9 +60,21 @@ RUN test -f social_image_api.py && \
 # Make permission fix script executable
 RUN chmod +x fix-permissions.sh
 
-# Create directories and set proper permissions
-RUN mkdir -p uploads/main uploads/background uploads/watermark output generated cache/assets && \
-    chown -R appuser:appuser uploads output generated cache
+# Create all necessary directories with proper structure
+RUN mkdir -p \
+    uploads/main \
+    uploads/background \
+    uploads/watermark \
+    output \
+    generated \
+    cache/assets \
+    cache/downloads \
+    assets/fonts/downloaded \
+    config && \
+    # Set ownership for appuser
+    chown -R appuser:appuser uploads output generated cache assets config && \
+    # Ensure fonts directory is writable by appuser  
+    chmod -R 755 assets/fonts
 
 # Set environment variables
 ENV PYTHONPATH=/app/src

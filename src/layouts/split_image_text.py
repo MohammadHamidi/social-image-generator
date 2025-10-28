@@ -358,11 +358,12 @@ class SplitImageTextLayout(PhotoLayoutEngine):
     def _draw_bullets(self, img: Image.Image, bullets: List[str], font: ImageFont.ImageFont,
                      x: int, y: int, max_width: int, color: Tuple[int, int, int],
                      is_rtl: bool):
-        """Draw bullet points."""
+        """Draw bullet points with drawn shapes instead of Unicode characters."""
         draw = ImageDraw.Draw(img)
 
         current_y = y
-        bullet_char = "•"
+        bullet_size = 12  # Larger, more visible bullet circle
+        bullet_spacing = 20  # Space between bullet and text
 
         for bullet_text in bullets:
             # Prepare text
@@ -371,16 +372,39 @@ class SplitImageTextLayout(PhotoLayoutEngine):
             else:
                 display_text = bullet_text
 
-            # Format with bullet
-            line = f"{bullet_char} {display_text}"
+            # Measure text height for proper alignment
+            bbox = font.getbbox(display_text)
+            text_height = bbox[3] - bbox[1]
+            text_width = bbox[2] - bbox[0]
+            
+            # Calculate bullet center position (vertically centered with text)
+            bullet_center_y = current_y + text_height // 2
+            
+            # Adjust for RTL
+            if is_rtl:
+                # For RTL, bullet goes on the right side
+                # Position text on the left
+                text_x = x
+                draw.text((text_x, current_y), display_text, font=font, fill=color)
+                
+                # Position bullet on the right side
+                bullet_x = x + max_width - bullet_size
+                draw.ellipse([bullet_x, bullet_center_y - bullet_size//2, 
+                             bullet_x + bullet_size, bullet_center_y + bullet_size//2], 
+                            fill=color)
+            else:
+                # For LTR, bullet goes on the left
+                bullet_x = x
+                draw.ellipse([bullet_x, bullet_center_y - bullet_size//2, 
+                             bullet_x + bullet_size, bullet_center_y + bullet_size//2], 
+                            fill=color)
+                
+                # Then draw text
+                text_x = x + bullet_size + bullet_spacing
+                draw.text((text_x, current_y), display_text, font=font, fill=color)
 
-            bbox = font.getbbox(line)
-            line_height = bbox[3] - bbox[1]
-
-            # Draw bullet point
-            draw.text((x, current_y), line, font=font, fill=color)
-
-            current_y += line_height + 20
+            # Move to next bullet with better spacing
+            current_y += text_height + 30
 
     def get_schema(self) -> dict:
         """Get JSON schema for this layout."""

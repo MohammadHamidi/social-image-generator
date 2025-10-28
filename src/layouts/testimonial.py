@@ -269,39 +269,75 @@ class TestimonialLayout(PhotoLayoutEngine):
 
     def _draw_rating(self, img: Image.Image, rating: float, y: int,
                      color: Tuple[int, int, int]) -> int:
-        """Draw star rating centered. Returns new Y position."""
+        """Draw star rating as shapes. Returns new Y position."""
         draw = ImageDraw.Draw(img)
 
-        # Create rating text (★ for filled, ☆ for empty)
         full_stars = int(rating)
         has_half = (rating - full_stars) >= 0.5
         empty_stars = 5 - full_stars - (1 if has_half else 0)
 
-        stars_text = "★" * full_stars
+        # Star configuration
+        star_size = self.options.get('star_size', 40)
+        star_spacing = 10
+        outline_width = 2
+
+        # Calculate total width
+        total_stars = 5
+        total_width = (star_size * total_stars) + (star_spacing * (total_stars - 1))
+        
+        # Starting X position (centered)
+        start_x = (self.canvas_width - total_width) // 2
+
+        current_x = start_x
+
+        # Draw filled stars
+        for _ in range(full_stars):
+            self._draw_star(draw, current_x, y, star_size, color, fill=True, outline=True)
+            current_x += star_size + star_spacing
+
+        # Draw half star if needed
         if has_half:
-            stars_text += "½"
-        stars_text += "☆" * empty_stars
+            self._draw_star(draw, current_x, y, star_size, color, fill=False, half=True)
+            current_x += star_size + star_spacing
 
-        # Use a medium font for stars
-        font_size = self.options.get('rating_size', 40)
-        font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                               'assets', 'fonts')
-        font_path = os.path.join(font_dir, 'NotoSans-Regular.ttf')
+        # Draw empty stars
+        for _ in range(empty_stars):
+            self._draw_star(draw, current_x, y, star_size, color, fill=False, outline=True)
+            current_x += star_size + star_spacing
 
-        try:
-            font = ImageFont.truetype(font_path, font_size)
-        except:
-            font = ImageFont.load_default()
+        return y + star_size + 10
 
-        bbox = font.getbbox(stars_text)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
+    def _draw_star(self, draw: ImageDraw.ImageDraw, x: int, y: int, size: int,
+                   color: Tuple[int, int, int], fill: bool, half: bool = False,
+                   outline: bool = True):
+        """Draw a star shape."""
+        import math
+        
+        star_points = []
+        center_x = x + size // 2
+        center_y = y + size // 2
+        outer_radius = size // 2
+        inner_radius = outer_radius // 2
 
-        x = (self.canvas_width - text_width) // 2
+        # Generate star points (5-pointed star)
+        for i in range(10):
+            angle = math.pi / 2 + (i * 2 * math.pi / 10)
+            radius = outer_radius if i % 2 == 0 else inner_radius
+            star_x = center_x + radius * math.cos(angle)
+            star_y = center_y + radius * math.sin(angle)
+            star_points.append((star_x, star_y))
 
-        draw.text((x, y), stars_text, font=font, fill=color)
-
-        return y + text_height
+        # Draw filled star
+        if fill:
+            draw.polygon(star_points, fill=color, outline=color if outline else None)
+        elif half:
+            # Draw left half filled, right half empty
+            left_points = star_points[:6] + [(center_x, center_y)]
+            draw.polygon(left_points, fill=color, outline=color if outline else None)
+        else:
+            # Draw empty star (outline only)
+            if outline:
+                draw.polygon(star_points, fill=None, outline=color)
 
     def _draw_centered_text(self, img: Image.Image, text: str, font: ImageFont.ImageFont,
                            y: int, color: Tuple[int, int, int]) -> int:
@@ -323,7 +359,7 @@ class TestimonialLayout(PhotoLayoutEngine):
         return y + text_height
 
     def _get_quote_font(self, is_rtl: bool, style: str) -> ImageFont.ImageFont:
-        """Get font for quote."""
+        """Get font for quote using font manager."""
         if style == 'large':
             font_size = self.options.get('quote_size', 48)
         else:
@@ -332,56 +368,30 @@ class TestimonialLayout(PhotoLayoutEngine):
         if is_rtl:
             font_size = int(font_size * 1.1)
 
-        font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                               'assets', 'fonts')
-
-        if is_rtl:
-            font_path = os.path.join(font_dir, 'IRANYekanRegularFaNum.ttf')
-        else:
-            font_path = os.path.join(font_dir, 'NotoSans-Regular.ttf')
-
-        try:
-            return ImageFont.truetype(font_path, font_size)
-        except:
-            return ImageFont.load_default()
+        # Use the content text to get appropriate font
+        quote_text = self.content.get('quote', '')
+        weight = 'bold' if style == 'large' else 'regular'
+        return self._get_font(quote_text, font_size, weight)
 
     def _get_name_font(self, is_rtl: bool) -> ImageFont.ImageFont:
-        """Get font for customer name."""
+        """Get font for customer name using font manager."""
         font_size = self.options.get('name_size', 32)
         if is_rtl:
             font_size = int(font_size * 1.1)
 
-        font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                               'assets', 'fonts')
-
-        if is_rtl:
-            font_path = os.path.join(font_dir, 'IRANYekanBoldFaNum.ttf')
-        else:
-            font_path = os.path.join(font_dir, 'NotoSans-Bold.ttf')
-
-        try:
-            return ImageFont.truetype(font_path, font_size)
-        except:
-            return ImageFont.load_default()
+        # Use the name text to get appropriate font
+        name_text = self.content.get('name', '')
+        return self._get_font(name_text, font_size, 'bold')
 
     def _get_title_font(self, is_rtl: bool) -> ImageFont.ImageFont:
-        """Get font for customer title."""
+        """Get font for customer title using font manager."""
         font_size = self.options.get('title_size', 24)
         if is_rtl:
             font_size = int(font_size * 1.1)
 
-        font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                               'assets', 'fonts')
-
-        if is_rtl:
-            font_path = os.path.join(font_dir, 'IRANYekanRegularFaNum.ttf')
-        else:
-            font_path = os.path.join(font_dir, 'NotoSans-Regular.ttf')
-
-        try:
-            return ImageFont.truetype(font_path, font_size)
-        except:
-            return ImageFont.load_default()
+        # Use the title text to get appropriate font
+        title_text = self.content.get('title', '')
+        return self._get_font(title_text, font_size, 'regular')
 
     def get_schema(self) -> dict:
         """Get JSON schema for this layout."""

@@ -16,6 +16,7 @@ from typing import Dict, List, Optional, Tuple, Any
 from PIL import Image, ImageDraw, ImageFont
 import os
 from src.utils.color_utils import get_contrasting_color, calculate_contrast_ratio
+from src.utils.font_manager import get_font_manager
 
 
 class LayoutEngine(ABC):
@@ -113,6 +114,27 @@ class LayoutEngine(ABC):
             'right': 60,
             'sides': 60  # Horizontal margin
         }
+
+    def _get_font(self, text: str, size: int, weight: str = 'regular') -> ImageFont.ImageFont:
+        """
+        Get appropriate font for text with automatic language detection.
+        
+        Uses FontManager to automatically download fonts for any language.
+        
+        Args:
+            text: Text to render
+            size: Font size in pixels
+            weight: Font weight ('regular' or 'bold')
+            
+        Returns:
+            PIL ImageFont object
+        """
+        try:
+            font_manager = get_font_manager()
+            return font_manager.get_font(text, size, weight)
+        except Exception as e:
+            print(f"⚠️ Font manager error: {e}, using default font")
+            return ImageFont.load_default()
 
     def _get_max_text_width(self) -> int:
         """
