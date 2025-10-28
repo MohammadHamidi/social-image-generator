@@ -1,0 +1,313 @@
+{
+  "carousel_posts": [
+    {
+      "slide": 1,
+      "layout_type": "headline_promo",
+      "content": {
+        "headline": "راهنمای کامل",
+        "subheadline": "واردات و پرداخت به چین",
+        "cta": "برای اطلاعات بیشتر بکشید ←"
+      },
+      "assets": {
+        "logo_url": "uploads/watermark/yuan-payment-logo.png"
+      },
+      "background": {
+        "mode": "gradient",
+        "gradient": {
+          "colors": [
+            [
+              200,
+              16,
+              46
+            ],
+            [
+              220,
+              38,
+              38
+            ]
+          ],
+          "direction": "diagonal"
+        }
+      },
+      "options": {
+        "headline_size": 72,
+        "subheadline_size": 48,
+        "cta_size": 32,
+        "text_color": [
+          255,
+          255,
+          255
+        ],
+        "text_position": "center",
+        "logo_position": "top-center",
+        "logo_size": 120,
+        "cta_bg_color": [
+          255,
+          215,
+          0
+        ],
+        "cta_text_color": [
+          200,
+          16,
+          46
+        ]
+      }
+    },
+    {
+      "slide": 2,
+      "layout_type": "split_image_text",
+      "content": {
+        "title": "سرعت و هزینه",
+        "description": "مقایسه روش‌های مختلف انتقال پول به چین",
+        "bullets": [
+          "انتقال سریع در کمتر از ۲۴ ساعت",
+          "کمترین کارمزد بازار",
+          "نرخ ارز واقعی بدون مارک‌آپ"
+        ]
+      },
+      "assets": {
+        "hero_image_url": "https://picsum.photos/540/1350?random=800",
+        "logo_url": "uploads/watermark/yuan-payment-logo.png"
+      },
+      "background": {
+        "mode": "solid_color",
+        "color": [
+          255,
+          255,
+          255
+        ]
+      },
+      "options": {
+        "split_direction": "vertical",
+        "image_position": "right",
+        "logo_position": "bottom-center",
+        "logo_size": 80
+      }
+    },
+    {
+      "slide": 3,
+      "layout_type": "overlay_text",
+      "content": {
+        "headline": "تشخیص جعلی!",
+        "subheadline": "چگونه فروشندگان معتبر را از جعلی تشخیص دهیم؟",
+        "overlay_text": "FAKE!"
+      },
+      "assets": {
+        "hero_image_url": "https://picsum.photos/1080/1350?random=801",
+        "logo_url": "uploads/watermark/yuan-payment-logo.png"
+      },
+      "background": {
+        "mode": "image_overlay",
+        "overlay_opacity": 0.3,
+        "overlay_color": [
+          200,
+          16,
+          46
+        ]
+      },
+      "options": {
+        "text_position": "bottom",
+        "text_box": true,
+        "text_box_color": [
+          200,
+          16,
+          46
+        ],
+        "text_color": [
+          255,
+          255,
+          255
+        ],
+        "logo_position": "top-right"
+      }
+    },
+    {
+      "slide": 4,
+      "layout_type": "caption_box",
+      "content": {
+        "title": "هزینه‌های پنهان",
+        "caption": "بسیاری از واردکنندگان از هزینه‌های پنهان واردات آگاه نیستند",
+        "details": "با یوان پیمنت تمام هزینه‌ها شفاف است"
+      },
+      "assets": {
+        "hero_image_url": "https://picsum.photos/1080/800?random=802",
+        "logo_url": "uploads/watermark/yuan-payment-logo.png"
+      },
+      "background": {
+        "mode": "solid_color",
+        "color": [
+          156,
+          163,
+          175
+        ]
+      },
+      "options": {
+        "caption_position": "bottom",
+        "caption_style": "box"
+      }
+    },
+    {
+      "slide": 5,
+      "layout_type": "product_showcase",
+      "content": {
+        "product_name": "واردات محصولات آرایشی",
+        "description": "از لوازم آرایشی تا محصولات بهداشتی",
+        "price": "با قیمت مناسب"
+      },
+      "assets": {
+        "hero_image_url": "https://picsum.photos/800/800?random=803",
+        "logo_url": "uploads/watermark/yuan-payment-logo.png"
+      },
+      "background": {
+        "mode": "gradient",
+        "gradient": {
+          "colors": [
+            [
+              200,
+              16,
+              46
+            ],
+            [
+              230,
+              50,
+              60
+            ]
+          ],
+          "direction": "vertical"
+        }
+      },
+      "options": {
+        "product_position": "center",
+        "show_price": true,
+        "text_color": [
+          255,
+          255,
+          255
+        ]
+      }
+    },
+    {
+      "slide": 6,
+      "layout_type": "checklist",
+      "content": {
+        "title": "از ۰ تا ۱۰۰ واردات از چین",
+        "items": [
+          "پیدا کردن تامین‌کننده معتبر",
+          "مذاکره و سفارش کالا",
+          "پرداخت ایمن به تامین‌کننده",
+          "ترخیص کالا از گمرک",
+          "دریافت کالا در ایران",
+          "پشتیبانی پس از فروش"
+        ],
+        "brand": "@yuan-payment"
+      },
+      "background": {
+        "mode": "solid_color",
+        "color": [
+          156,
+          163,
+          175
+        ]
+      },
+      "options": {
+        "check_style": "checkmark",
+        "title_color": [
+          28,
+          28,
+          28
+        ],
+        "item_color": [
+          55,
+          65,
+          81
+        ],
+        "check_color": [
+          200,
+          16,
+          46
+        ]
+      }
+    },
+    {
+      "slide": 7,
+      "layout_type": "headline_promo",
+      "content": {
+        "headline": "آماده شروع هستید؟",
+        "subheadline": "همین الان با ما تماس بگیرید",
+        "cta": "تماس با ما"
+      },
+      "assets": {
+        "logo_url": "uploads/watermark/yuan-payment-logo.png"
+      },
+      "background": {
+        "mode": "gradient",
+        "gradient": {
+          "colors": [
+            [
+              200,
+              16,
+              46
+            ],
+            [
+              255,
+              215,
+              0
+            ]
+          ],
+          "direction": "diagonal"
+        }
+      },
+      "options": {
+        "headline_size": 68,
+        "text_color": [
+          255,
+          255,
+          255
+        ],
+        "text_position": "center",
+        "logo_position": "bottom-center",
+        "logo_size": 150,
+        "cta_bg_color": [
+          255,
+          255,
+          255
+        ],
+        "cta_text_color": [
+          200,
+          16,
+          46
+        ],
+        "show_contact": true,
+        "contact_text": "www.yuan-payment.com"
+      }
+    }
+  ],
+  "metadata": {
+    "campaign_name": "Yuan Payment - Complete Import Guide",
+    "target_audience": "Persian/Farsi speakers importing from China",
+    "brand_colors": {
+      "primary_red": [
+        200,
+        16,
+        46
+      ],
+      "gold": [
+        255,
+        215,
+        0
+      ],
+      "black": [
+        28,
+        28,
+        28
+      ],
+      "white": [
+        255,
+        255,
+        255
+      ]
+    },
+    "strategy": "Problem-solution educational carousel with strong branding",
+    "post_caption": "راهنمای کامل واردات از چین 🇨🇳\n\n✅ سرعت و هزینه کمتر\n✅ تشخیص فروشندگان معتبر\n✅ هزینه‌های پنهان\n✅ واردات محصولات آرایشی\n✅ راهنمای گام به گام\n\n💬 سوالی دارید؟ در کامنت بپرسید!\n\n#واردات #چین #یوان #پرداخت #واردات_از_چین"
+  }
+}

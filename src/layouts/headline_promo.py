@@ -323,69 +323,29 @@ class HeadlinePromoLayout(PhotoLayoutEngine):
         return img
 
     def _get_headline_font(self, is_rtl: bool) -> ImageFont.ImageFont:
-        """Get font for headline."""
+        """Get font for headline using FontManager."""
         font_size = self.options.get('headline_size', 84)
         if is_rtl:
             font_size = int(font_size * 1.1)  # Slightly larger for Farsi
-
-        font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                               'assets', 'fonts')
-
-        if is_rtl:
-            font_path = os.path.join(font_dir, 'IRANYekanBoldFaNum.ttf')
-        else:
-            font_path = os.path.join(font_dir, 'NotoSans-Bold.ttf')
-
-        try:
-            if not os.path.exists(font_path):
-                print(f"❌ Font not found: {font_path}")
-                return ImageFont.load_default()
-            
-            font = ImageFont.truetype(font_path, font_size)
-            print(f"✅ Loaded font: {os.path.basename(font_path)} at size {font_size}")
-            return font
-        except Exception as e:
-            print(f"❌ Font loading error: {e}")
-            return ImageFont.load_default()
+        
+        headline_text = self.content.get('headline', '')
+        return self._get_font(headline_text, font_size, 'bold')
 
     def _get_subheadline_font(self, is_rtl: bool) -> ImageFont.ImageFont:
-        """Get font for subheadline."""
+        """Get font for subheadline using FontManager."""
         font_size = self.options.get('subheadline_size', 42)
         if is_rtl:
             font_size = int(font_size * 1.1)
-
-        font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                               'assets', 'fonts')
-
-        if is_rtl:
-            font_path = os.path.join(font_dir, 'IRANYekanMediumFaNum.ttf')
-        else:
-            font_path = os.path.join(font_dir, 'NotoSans-Regular.ttf')
-
-        try:
-            if not os.path.exists(font_path):
-                print(f"❌ Font not found: {font_path}")
-                return ImageFont.load_default()
-            
-            font = ImageFont.truetype(font_path, font_size)
-            print(f"✅ Loaded font: {os.path.basename(font_path)} at size {font_size}")
-            return font
-        except Exception as e:
-            print(f"❌ Font loading error: {e}")
-            return ImageFont.load_default()
+        
+        subheadline_text = self.content.get('subheadline', '')
+        return self._get_font(subheadline_text, font_size, 'regular')
 
     def _get_cta_font(self) -> ImageFont.ImageFont:
-        """Get font for CTA button."""
+        """Get font for CTA button using FontManager."""
         font_size = self.options.get('cta_size', 32)
-
-        font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                               'assets', 'fonts')
-        font_path = os.path.join(font_dir, 'NotoSans-Bold.ttf')
-
-        try:
-            return ImageFont.truetype(font_path, font_size)
-        except:
-            return ImageFont.load_default()
+        
+        cta_text = self.content.get('cta', '')
+        return self._get_font(cta_text, font_size, 'bold')
 
     def _calculate_total_text_height(self, headline: str, subheadline: Optional[str],
                                     cta: Optional[str],
@@ -487,8 +447,14 @@ class HeadlinePromoLayout(PhotoLayoutEngine):
         """Draw CTA button."""
         draw = ImageDraw.Draw(img)
 
-        # Prepare text
-        display_text = self._prepare_arabic_text(text) if is_rtl and self._is_rtl_text(text) else text
+        # Detect RTL for CTA text specifically
+        cta_is_rtl = self._is_rtl_text(text)
+        
+        # Prepare text for proper RTL rendering
+        if cta_is_rtl:
+            display_text = self._prepare_arabic_text(text)
+        else:
+            display_text = text
 
         # Measure text
         bbox = font.getbbox(display_text)
@@ -517,8 +483,14 @@ class HeadlinePromoLayout(PhotoLayoutEngine):
             fill=button_color
         )
 
-        # Draw text
-        text_x = button_x + padding_x
+        # Draw text with proper RTL alignment
+        if cta_is_rtl:
+            # For RTL text, align right within button
+            text_x = button_x + button_width - padding_x - text_width
+        else:
+            # For LTR text, align left within button
+            text_x = button_x + padding_x
+        
         text_y = button_y + padding_y
 
         draw.text((text_x, text_y), display_text, font=font, fill=text_color)

@@ -73,8 +73,9 @@ RUN mkdir -p \
     config && \
     # Set ownership for appuser
     chown -R appuser:appuser uploads output generated cache assets config && \
-    # Ensure fonts directory is writable by appuser  
-    chmod -R 755 assets/fonts
+    # Ensure directories are fully writable by appuser
+    chmod -R 755 assets/fonts && \
+    chmod -R 775 uploads output generated
 
 # Set environment variables
 ENV PYTHONPATH=/app/src
