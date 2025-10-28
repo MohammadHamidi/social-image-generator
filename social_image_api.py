@@ -334,7 +334,7 @@ def upload_main_image():
         if not success:
             return jsonify({'error': f'File upload failed: {error_msg}'}), 500
 
-        # Generate URL
+        # Generate URL for serving the file
         file_url = generate_url('uploaded_file', folder='main', filename=filename)
 
         return jsonify({
@@ -342,6 +342,7 @@ def upload_main_image():
             'message': 'Main image uploaded successfully',
             'filename': filename,
             'url': file_url,
+            'path': filepath,  # Filesystem path for AssetManager
             'size': os.path.getsize(filepath),
             'upload_time': datetime.now().isoformat()
         })
@@ -382,7 +383,7 @@ def upload_watermark_image():
         if not success:
             return jsonify({'error': f'File upload failed: {error_msg}'}), 500
 
-        # Generate URL
+        # Generate URL for serving the file
         file_url = generate_url('uploaded_file', folder='watermark', filename=filename)
 
         return jsonify({
@@ -390,6 +391,7 @@ def upload_watermark_image():
             'message': 'Watermark image uploaded successfully',
             'filename': filename,
             'url': file_url,
+            'path': filepath,  # Filesystem path for AssetManager
             'size': os.path.getsize(filepath),
             'upload_time': datetime.now().isoformat()
         })
@@ -431,7 +433,7 @@ def upload_background_image():
         if not success:
             return jsonify({'error': f'File upload failed: {error_msg}'}), 500
 
-        # Generate URL
+        # Generate URL for serving the file
         filename = os.path.basename(filepath)
         file_url = generate_url('uploaded_file', folder='background', filename=filename)
 
@@ -440,7 +442,8 @@ def upload_background_image():
             'message': 'Background image uploaded and processed successfully',
             'filename': filename,
             'url': file_url,
-            'local_path': filepath,
+            'path': filepath,  # Filesystem path for AssetManager
+            'local_path': filepath,  # Kept for backward compatibility
             'size': os.path.getsize(filepath),
             'upload_time': datetime.now().isoformat()
         })

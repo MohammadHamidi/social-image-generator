@@ -229,51 +229,63 @@ class AssetManager:
     def _resolve_path(self, path: str) -> str:
         """
         Resolve path variations for Docker container and local filesystems.
-        
+
         Tries multiple path variations:
-        1. Original path
-        2. If starts with /uploads/, try /app/uploads/...
+        1. Original path (as-is)
+        2. If starts with /uploads/, try /app/uploads/... (Docker absolute)
         3. If starts with /app/uploads/, try uploads/... (relative)
-        
+        4. If absolute path, try as relative
+        5. If relative, try with current working directory
+
         Args:
-            path: Original path
-            
+            path: Original path (could be URL path or filesystem path)
+
         Returns:
             Resolved path that exists, or original path if none found
         """
-        # Try original path first
-        if os.path.exists(path):
-            print(f"✅ Path resolved (original): {path}")
-            return path
-        
-        print(f"🔍 Path not found, trying variations: {path}")
-        
-        # Try prepending /app if path starts with /uploads/
+        # List of path variations to try
+        variations = [path]  # Try original first
+
+        # Build all possible variations
         if path.startswith('/uploads/'):
-            app_path = '/app' + path
-            print(f"  Trying: {app_path}")
-            if os.path.exists(app_path):
-                print(f"✅ Path resolved: {app_path}")
-                return app_path
-        
-        # Try removing /app prefix if path starts with /app/uploads/
+            # Flask URL path -> convert to filesystem paths
+            variations.append('/app' + path)  # Docker absolute
+            variations.append(path[1:])  # Remove leading slash for relative
+            variations.append(os.path.join(os.getcwd(), path[1:]))  # CWD + relative
+
         if path.startswith('/app/uploads/'):
-            relative_path = path[5:]  # Remove '/app/' prefix
-            print(f"  Trying: {relative_path}")
-            if os.path.exists(relative_path):
-                print(f"✅ Path resolved: {relative_path}")
-                return relative_path
-        
-        # Try as relative from current working directory
-        if path.startswith('/'):
-            relative_path = path.lstrip('/')
-            print(f"  Trying: {relative_path}")
-            if os.path.exists(relative_path):
-                print(f"✅ Path resolved: {relative_path}")
-                return relative_path
-        
-        # No variation worked, return original
-        print(f"❌ No path variation worked, using original: {path}")
+            # Docker absolute -> try relative
+            variations.append(path[5:])  # Remove '/app/' prefix
+            variations.append(os.path.join(os.getcwd(), path[5:]))
+
+        if path.startswith('/') and not path.startswith('/app/'):
+            # Other absolute paths -> try relative
+            variations.append(path.lstrip('/'))
+            variations.append(os.path.join(os.getcwd(), path.lstrip('/')))
+
+        if not path.startswith('/'):
+            # Relative path -> try with CWD
+            variations.append(os.path.join(os.getcwd(), path))
+            variations.append('/' + path)  # Try as absolute
+            variations.append('/app/' + path)  # Try with Docker prefix
+
+        # Try each variation
+        for idx, variation in enumerate(variations):
+            if os.path.exists(variation):
+                if idx == 0:
+                    print(f"✅ Path resolved (original): {variation}")
+                else:
+                    print(f"✅ Path resolved (variation {idx}): {path} -> {variation}")
+                return variation
+
+        # No variation worked
+        print(f"❌ Path not found after trying {len(variations)} variations:")
+        for i, v in enumerate(variations[:5]):  # Show first 5 attempts
+            print(f"   {i+1}. {v}")
+        if len(variations) > 5:
+            print(f"   ... and {len(variations) - 5} more")
+
+        print(f"⚠️  Returning original path: {path}")
         return path
 
     def _load_from_disk_cache(self, cache_key: str) -> Optional[Image.Image]:
@@ -438,6 +450,23 @@ class AssetManager:
         new_height = int(img_height * ratio)
 
         return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+    def fit_to_bounds(self,
+                      image: Image.Image,
+                      bounds: Tuple[int, int],
+                      maintain_aspect: bool = True) -> Image.Image:
+        """
+        Fit image to bounding box dimensions (alias for resize_to_fit).
+
+        Args:
+            image: Source image
+            bounds: (max_width, max_height) tuple
+            maintain_aspect: Maintain aspect ratio (default: True)
+
+        Returns:
+            Resized image
+        """
+        return self.resize_to_fit(image, bounds[0], bounds[1], maintain_aspect)
 
     def remove_background(self,
                           image: Image.Image,
