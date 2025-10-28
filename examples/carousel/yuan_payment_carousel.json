@@ -134,12 +134,14 @@
         "logo_url": "uploads/watermark/yuan-payment-logo.png"
       },
       "background": {
-        "mode": "solid_color",
-        "color": [
-          156,
-          163,
-          175
-        ]
+        "mode": "gradient",
+        "gradient": {
+          "colors": [
+            [255, 255, 255],
+            [255, 250, 230]
+          ],
+          "direction": "vertical"
+        }
       },
       "options": {
         "caption_position": "bottom",
@@ -204,9 +206,9 @@
       "background": {
         "mode": "solid_color",
         "color": [
-          156,
-          163,
-          175
+          255,
+          255,
+          255
         ]
       },
       "options": {

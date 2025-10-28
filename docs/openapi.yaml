@@ -1,0 +1,951 @@
+openapi: 3.0.3
+info:
+  title: Social Image Generator API
+  description: |
+    API for generating custom social media images for Instagram, Facebook, and other platforms.
+
+    ## Features
+    - Upload images (main, watermark, background)
+    - Generate social media posts with multiple layout types
+    - Create gradient backgrounds
+    - Text-based layouts with RTL support
+    - Background removal (AI-powered)
+    - Custom fonts and colors
+
+    ## Authentication
+    Currently no authentication required (add your own if needed)
+
+    ## Base URL
+    - Development: `http://localhost:5000`
+    - Production: Configure via environment variables
+
+  version: 2.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:5000
+    description: Development server
+  - url: http://localhost:8000
+    description: Alternative development port
+
+tags:
+  - name: System
+    description: System information and health checks
+  - name: Upload
+    description: File upload endpoints
+  - name: Generation
+    description: Image generation endpoints
+  - name: Layouts
+    description: Layout information and schemas
+  - name: Utility
+    description: Utility endpoints for file management
+
+paths:
+  /:
+    get:
+      summary: API Documentation
+      description: Get API documentation and available endpoints
+      tags:
+        - System
+      responses:
+        '200':
+          description: API information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    example: Social Image Generator API
+                  version:
+                    type: string
+                    example: "2.0"
+                  description:
+                    type: string
+                  endpoints:
+                    type: object
+                  example_usage:
+                    type: object
+
+  /health:
+    get:
+      summary: Health Check
+      description: Get system health status and diagnostics
+      tags:
+        - System
+      responses:
+        '200':
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+                  system:
+                    type: object
+                    properties:
+                      python_version:
+                        type: string
+                      platform:
+                        type: string
+                      upload_ready:
+                        type: boolean
+                      generation_ready:
+                        type: boolean
+                  storage:
+                    type: object
+                    properties:
+                      free_space_gb:
+                        type: number
+                      total_space_gb:
+                        type: number
+                      used_space_gb:
+                        type: number
+        '500':
+          description: System is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /config:
+    get:
+      summary: Get Configuration
+      description: Get current API configuration settings
+      tags:
+        - System
+      responses:
+        '200':
+          description: Configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  return_full_urls:
+                    type: boolean
+                    description: Whether API returns full URLs or relative paths
+                  description:
+                    type: string
+
+    post:
+      summary: Update Configuration
+      description: Update API configuration settings
+      tags:
+        - System
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                return_full_urls:
+                  type: boolean
+                  description: Set to true for full URLs, false for relative paths
+      responses:
+        '200':
+          description: Configuration updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  return_full_urls:
+                    type: boolean
+
+  /upload/main:
+    post:
+      summary: Upload Main Image
+      description: Upload main/hero image for use in layouts
+      tags:
+        - Upload
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Image file (PNG, JPG, JPEG, GIF, WebP)
+      responses:
+        '200':
+          description: Image uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  filename:
+                    type: string
+                  url:
+                    type: string
+                    description: URL to access uploaded file
+                  path:
+                    type: string
+                    description: Filesystem path for AssetManager
+                  size:
+                    type: integer
+                  upload_time:
+                    type: string
+                    format: date-time
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /upload/watermark:
+    post:
+      summary: Upload Watermark/Logo Image
+      description: Upload watermark or logo image for branding
+      tags:
+        - Upload
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Image file (PNG, JPG, JPEG, GIF, WebP)
+      responses:
+        '200':
+          description: Watermark uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  filename:
+                    type: string
+                  url:
+                    type: string
+                  path:
+                    type: string
+                  size:
+                    type: integer
+                  upload_time:
+                    type: string
+                    format: date-time
+
+  /upload/background:
+    post:
+      summary: Upload Background Image
+      description: Upload custom background image
+      tags:
+        - Upload
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Image file (PNG, JPG, JPEG, GIF, WebP)
+      responses:
+        '200':
+          description: Background uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  filename:
+                    type: string
+                  url:
+                    type: string
+                  path:
+                    type: string
+                  local_path:
+                    type: string
+                  size:
+                    type: integer
+                  upload_time:
+                    type: string
+                    format: date-time
+
+  /generate_post:
+    post:
+      summary: Generate Instagram Post (Universal Endpoint)
+      description: |
+        Universal endpoint for generating Instagram posts with any layout type.
+        Supports all layouts via the LayoutEngine architecture.
+
+        ## Background Removal
+        This endpoint supports AI-powered background removal:
+        - `remove_hero_background`: Remove background from main/product images
+        - `remove_watermark_background`: Remove background from logos
+        - `bg_removal_method`: Choose method (auto/edge/color)
+
+        See examples in request body schemas.
+      tags:
+        - Generation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GeneratePostRequest'
+            examples:
+              headline_promo:
+                summary: Headline Promo with CTA
+                value:
+                  layout_type: headline_promo
+                  content:
+                    headline: "Summer Sale"
+                    subheadline: "Up to 50% Off Everything"
+                    cta: "Shop Now"
+                  background:
+                    mode: gradient
+                    gradient:
+                      colors:
+                        - [255, 107, 107]
+                        - [253, 187, 45]
+                      direction: vertical
+                  options:
+                    headline_size: 84
+                    cta_bg_color: [255, 255, 255]
+
+              product_showcase:
+                summary: Product Showcase with Background Removal
+                value:
+                  layout_type: product_showcase
+                  content:
+                    product_name: "Leather Bag"
+                    description: "Premium Quality"
+                    price: "$99.99"
+                  assets:
+                    hero_image_url: "uploads/main/product.png"
+                  background:
+                    mode: gradient
+                    gradient:
+                      colors:
+                        - [240, 240, 250]
+                        - [255, 255, 255]
+                      direction: vertical
+                  options:
+                    remove_hero_background: true
+                    bg_removal_method: auto
+
+              yuan_payment:
+                summary: Yuan Payment Farsi Content
+                value:
+                  layout_type: headline_promo
+                  content:
+                    headline: "راهنمای کامل"
+                    subheadline: "واردات و پرداخت به چین"
+                    cta: "برای اطلاعات بیشتر بکشید ←"
+                  assets:
+                    logo_url: "uploads/watermark/yuan-payment-logo.png"
+                  background:
+                    mode: gradient
+                    gradient:
+                      colors:
+                        - [200, 16, 46]
+                        - [255, 215, 0]
+                      direction: diagonal
+                  options:
+                    logo_position: "top-center"
+                    logo_size: 120
+                    cta_bg_color: [255, 215, 0]
+                    cta_text_color: [200, 16, 46]
+
+      responses:
+        '200':
+          description: Post generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  layout_type:
+                    type: string
+                  generated_files:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        slide:
+                          type: integer
+                        download_url:
+                          type: string
+                        filename:
+                          type: string
+                        width:
+                          type: integer
+                        height:
+                          type: integer
+                        size_bytes:
+                          type: integer
+                  total_slides:
+                    type: integer
+                  generated_at:
+                    type: string
+                    format: date-time
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Generation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /generate_gradient:
+    post:
+      summary: Generate Gradient Background
+      description: |
+        Generate custom gradient backgrounds with multiple colors and effects.
+
+        Features:
+        - Linear, radial, and diagonal gradients
+        - Multi-color gradients
+        - HSL color interpolation for smooth transitions
+        - Optional noise and dithering effects
+        - Automatic color harmony generation
+      tags:
+        - Generation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                width:
+                  type: integer
+                  minimum: 100
+                  maximum: 4096
+                  default: 1080
+                height:
+                  type: integer
+                  minimum: 100
+                  maximum: 4096
+                  default: 1350
+                colors:
+                  type: array
+                  items:
+                    oneOf:
+                      - type: string
+                        pattern: '^#[0-9A-Fa-f]{6}$'
+                        example: "#FF6B6B"
+                      - type: array
+                        items:
+                          type: integer
+                          minimum: 0
+                          maximum: 255
+                        minItems: 3
+                        maxItems: 3
+                        example: [255, 107, 107]
+                  minItems: 1
+                  description: Array of colors (hex strings or RGB arrays)
+                gradient_type:
+                  type: string
+                  enum: [linear, radial, diagonal]
+                  default: linear
+                direction:
+                  type: string
+                  enum: [vertical, horizontal, diagonal]
+                  default: vertical
+                use_hsl_interpolation:
+                  type: boolean
+                  default: true
+                  description: Better color transitions
+                add_noise:
+                  type: boolean
+                  default: true
+                  description: Add subtle texture
+                noise_intensity:
+                  type: number
+                  minimum: 0
+                  maximum: 1
+                  default: 0.02
+                apply_dither:
+                  type: boolean
+                  default: false
+                  description: Dithering for smoothness
+                generate_harmony:
+                  type: boolean
+                  default: false
+                  description: Auto-generate color harmony
+                harmony_type:
+                  type: string
+                  enum: [complementary, triadic, analogous, split_complementary]
+                  default: complementary
+                quality:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  default: 95
+            examples:
+              simple_vertical:
+                summary: Simple Vertical Gradient
+                value:
+                  width: 1080
+                  height: 1350
+                  colors: ["#FF6B6B", "#4ECDC4"]
+                  gradient_type: linear
+                  direction: vertical
+
+              multi_color:
+                summary: Multi-Color Horizontal
+                value:
+                  width: 1080
+                  height: 1350
+                  colors: ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FDCB6E"]
+                  gradient_type: linear
+                  direction: horizontal
+
+              yuan_payment:
+                summary: Yuan Payment Red-Gold
+                value:
+                  width: 1080
+                  height: 1350
+                  colors: [[200, 16, 46], [255, 215, 0]]
+                  gradient_type: diagonal
+                  direction: diagonal
+                  use_hsl_interpolation: true
+                  add_noise: true
+
+      responses:
+        '200':
+          description: Gradient generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  download_url:
+                    type: string
+                  filename:
+                    type: string
+                  size:
+                    type: integer
+                  dimensions:
+                    type: object
+                    properties:
+                      width:
+                        type: integer
+                      height:
+                        type: integer
+                  gradient_config:
+                    type: object
+                  enhancements:
+                    type: object
+                  generated_at:
+                    type: string
+                    format: date-time
+
+  /layouts:
+    get:
+      summary: List Available Layouts
+      description: Get list of all available layout types and their schemas
+      tags:
+        - Layouts
+      responses:
+        '200':
+          description: List of layouts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  layouts:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        description:
+                          type: string
+                        category:
+                          type: string
+                        supports_carousel:
+                          type: boolean
+                  count:
+                    type: integer
+                  categories:
+                    type: object
+
+  /gradient_info:
+    get:
+      summary: Gradient Generation Info
+      description: Get documentation about gradient generation options
+      tags:
+        - Layouts
+      responses:
+        '200':
+          description: Gradient information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  gradient_types:
+                    type: object
+                  color_formats:
+                    type: array
+                    items:
+                      type: string
+                  parameters:
+                    type: object
+                  examples:
+                    type: object
+                  usage:
+                    type: object
+
+  /text_layout_info:
+    get:
+      summary: Text Layout Info
+      description: Get documentation about text-based layout types
+      tags:
+        - Layouts
+      responses:
+        '200':
+          description: Text layout information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  text_layouts:
+                    type: object
+                  features:
+                    type: array
+                    items:
+                      type: string
+                  usage:
+                    type: object
+
+  /files:
+    get:
+      summary: List Uploaded Files
+      description: List all uploaded files for debugging
+      tags:
+        - Utility
+      responses:
+        '200':
+          description: File list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  main_images:
+                    type: array
+                    items:
+                      type: string
+                  watermark_images:
+                    type: array
+                    items:
+                      type: string
+                  background_images:
+                    type: array
+                    items:
+                      type: string
+                  generated_images:
+                    type: array
+                    items:
+                      type: string
+                  total_main:
+                    type: integer
+                  total_watermark:
+                    type: integer
+                  total_background:
+                    type: integer
+                  total_generated:
+                    type: integer
+
+  /uploads/{folder}/{filename}:
+    get:
+      summary: Get Uploaded File
+      description: Serve uploaded file
+      tags:
+        - Utility
+      parameters:
+        - name: folder
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [main, watermark, background]
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File served successfully
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: File not found
+
+  /generated/{filename}:
+    get:
+      summary: Get Generated File
+      description: Serve generated image file
+      tags:
+        - Utility
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File served successfully
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: File not found
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        message:
+          type: string
+          description: Detailed error description
+        timestamp:
+          type: string
+          format: date-time
+
+    GeneratePostRequest:
+      type: object
+      required:
+        - layout_type
+        - content
+      properties:
+        layout_type:
+          type: string
+          description: Layout type to use
+          enum:
+            - headline_promo
+            - split_image_text
+            - overlay_text
+            - caption_box
+            - product_showcase
+            - checklist
+            - testimonial
+        content:
+          type: object
+          description: Layout-specific content fields
+          additionalProperties: true
+        assets:
+          type: object
+          description: Image assets (hero, logo, etc.)
+          properties:
+            hero_image_url:
+              type: string
+              description: Main/hero image path or URL
+            logo_url:
+              type: string
+              description: Logo/watermark image path
+            watermark_url:
+              type: string
+              description: Watermark image path
+        background:
+          type: object
+          description: Background configuration
+          properties:
+            mode:
+              type: string
+              enum: [gradient, solid_color, image, image_overlay]
+              default: gradient
+            gradient:
+              type: object
+              properties:
+                colors:
+                  type: array
+                  items:
+                    type: array
+                    items:
+                      type: integer
+                      minimum: 0
+                      maximum: 255
+                    minItems: 3
+                    maxItems: 3
+                direction:
+                  type: string
+                  enum: [vertical, horizontal, diagonal]
+            color:
+              type: array
+              items:
+                type: integer
+                minimum: 0
+                maximum: 255
+              minItems: 3
+              maxItems: 3
+              description: RGB color for solid_color mode
+            image_url:
+              type: string
+              description: Background image path (for image mode)
+            overlay_opacity:
+              type: number
+              minimum: 0
+              maximum: 1
+              description: Overlay opacity (for image_overlay mode)
+            overlay_color:
+              type: array
+              items:
+                type: integer
+              description: Overlay color RGB
+        options:
+          type: object
+          description: Layout-specific options and settings
+          properties:
+            width:
+              type: integer
+              default: 1080
+            height:
+              type: integer
+              default: 1350
+            remove_hero_background:
+              type: boolean
+              default: false
+              description: Remove background from hero/product images
+            remove_watermark_background:
+              type: boolean
+              default: false
+              description: Remove background from watermark/logo
+            bg_removal_method:
+              type: string
+              enum: [auto, edge, color]
+              default: auto
+              description: |
+                Background removal method:
+                - auto: AI-powered (rembg)
+                - edge: Enhanced edge detection
+                - color: Color threshold-based
+            bg_removal_alpha_matting:
+              type: boolean
+              default: false
+              description: Enable alpha matting for better edges (rembg only)
+            bg_color_tolerance:
+              type: integer
+              default: 30
+              description: Color tolerance for color removal method
+            headline_size:
+              type: integer
+              description: Font size for headlines
+            cta_bg_color:
+              type: array
+              items:
+                type: integer
+              description: CTA button background color RGB
+            cta_text_color:
+              type: array
+              items:
+                type: integer
+              description: CTA button text color RGB
+            logo_position:
+              type: string
+              enum: [top-left, top-center, top-right, bottom-left, bottom-center, bottom-right]
+              description: Logo position on canvas
+            logo_size:
+              type: integer
+              description: Logo size in pixels
+
+    BackgroundConfig:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [gradient, solid_color, image, image_overlay]
+        gradient:
+          type: object
+          properties:
+            colors:
+              type: array
+              items:
+                type: array
+                items:
+                  type: integer
+            direction:
+              type: string
+
+    AssetConfig:
+      type: object
+      properties:
+        hero_image_url:
+          type: string
+        logo_url:
+          type: string
+        watermark_url:
+          type: string
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT authentication (if enabled)
+
+security: []  # No authentication required by default
