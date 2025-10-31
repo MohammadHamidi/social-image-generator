@@ -101,3 +101,16 @@ USER appuser
 
 # Default command - start Flask API server
 CMD ["python", "social_image_api.py"]
+
+# Install curl for healthchecks
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# Switch to non-root user
+USER appuser
+
+# Default command - start Flask API server
+CMD ["python", "social_image_api.py"]
+
+# Healthcheck - use curl instead of Python urllib
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:${PORT}/health || exit 1
