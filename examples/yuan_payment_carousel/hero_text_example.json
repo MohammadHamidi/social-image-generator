@@ -1,0 +1,37 @@
+{
+  "layout_type": "yuan_payment_carousel",
+  "content": {
+    "title": "**Welcome** to Yuan Payment",
+    "hero_text": "#color:yellow#重要通知#\n**Payment System**\n*Now Available*",
+    "description": "This is a **bold** description with *italic* text and #color:yellow#colored text#",
+    "subtitle": "*Learn more* about our services"
+  },
+  "assets": {
+    "hero_image_url": "",
+    "logo_url": ""
+  },
+  "background": {
+    "mode": "gradient",
+    "gradient": {
+      "colors": [
+        [194, 0, 0],
+        [150, 0, 0]
+      ],
+      "direction": "vertical"
+    }
+  },
+  "options": {
+    "layout_style": "centered_portrait",
+    "hero_mode": "text",
+    "hero_text_align": "center",
+    "hero_text_color": [255, 215, 0],
+    "hero_text_size": 56,
+    "title_align": "center",
+    "description_align": "justify",
+    "subtitle_align": "center",
+    "enable_rich_text": true,
+    "show_slide_number": false,
+    "show_brand_footer": true,
+    "text_color": "white"
+  }
+}

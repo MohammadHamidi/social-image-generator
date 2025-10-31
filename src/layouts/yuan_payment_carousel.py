@@ -19,6 +19,7 @@ from typing import List, Tuple, Optional, Dict, Any
 import os
 import random
 import requests
+import re
 from io import BytesIO
 
 
@@ -220,13 +221,28 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
                 # Add background removal support for logos
                 remove_logo_bg = self.options.get('remove_logo_background', False)
                 logo_bg_method = self.options.get('logo_bg_removal_method', 'auto')
+                
+                # First load logo without background removal to check transparency
                 logo = asset_manager.load_asset(
                     logo_url.strip(), 
                     role='logo', 
                     use_cache=True,
-                    remove_bg=remove_logo_bg,
-                    bg_removal_method=logo_bg_method
+                    remove_bg=False  # Load first to check transparency
                 )
+                
+                # Check if logo already has transparency
+                if self._has_transparency(logo):
+                    print(f"✅ Logo already has transparent background, skipping removal: {logo_url}")
+                elif remove_logo_bg:
+                    # If background removal is requested and logo doesn't have transparency, apply it
+                    print(f"🎨 Applying background removal to logo: {logo_url} (method: {logo_bg_method})")
+                    logo = asset_manager.remove_background(
+                        logo,
+                        method=logo_bg_method,
+                        alpha_matting=self.options.get('alpha_matting', True),
+                        color_tolerance=self.options.get('color_tolerance', 30)
+                    )
+                    print(f"✅ Logo background removed successfully")
                 
                 # Get logo size from options, default to 120
                 logo_size = self.options.get('logo_size', 120)
@@ -323,6 +339,160 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         else:
             return self._load_random_image()
 
+    def _has_transparency(self, image: Image.Image) -> bool:
+        """Check if image already has transparency/alpha channel."""
+        if image.mode == 'RGBA':
+            alpha_channel = image.split()[-1]
+            # Check if alpha channel has any transparent pixels
+            alpha_min, alpha_max = alpha_channel.getextrema()
+            # If min alpha is less than 255, image has some transparency
+            if alpha_min < 255:
+                return True
+        return False
+
+    def _parse_rich_text(self, text: str) -> List[Tuple[str, Dict[str, Any]]]:
+        """
+        Parse rich text with formatting tags.
+        
+        Supports:
+        - **bold** or __bold__
+        - *italic* or _italic_
+        - ***bold italic***
+        - #color:red#text# or #color:255,0,0#text#
+        - #size:48#text#
+        
+        Returns:
+            List of (text, styles) tuples where styles is dict with keys:
+            - bold: bool
+            - italic: bool
+            - color: tuple(R, G, B) or None
+            - size: int or None
+        """
+        if not text:
+            return []
+        
+        # Check if rich text is enabled
+        enable_rich_text = self.options.get('enable_rich_text', True)
+        if not enable_rich_text:
+            return [(text, {})]
+        
+        segments = []
+        i = 0
+        
+        while i < len(text):
+            # Look for formatting tags
+            found_tag = False
+            
+            # Color tag: #color:value#text#
+            color_match = re.match(r'#color:([^#]+)#', text[i:])
+            if color_match:
+                color_value = color_match.group(1)
+                # Try to parse as RGB tuple or color name
+                try:
+                    if ',' in color_value:
+                        # RGB tuple: "255,0,0"
+                        rgb = [int(x.strip()) for x in color_value.split(',')]
+                        color = tuple(rgb[:3])
+                    else:
+                        # Color name
+                        color_map = {
+                            'red': (194, 0, 0),
+                            'yellow': (255, 215, 0),
+                            'white': (255, 255, 255),
+                            'black': (0, 0, 0),
+                            'blue': (0, 123, 255),
+                            'green': (40, 167, 69)
+                        }
+                        color = color_map.get(color_value.lower(), (255, 255, 255))
+                except:
+                    color = (255, 255, 255)
+                
+                # Find closing tag
+                end_pos = text.find('#', i + color_match.end())
+                if end_pos != -1:
+                    tag_start = i + color_match.start()
+                    tag_end = i + color_match.end()
+                    close_pos = end_pos + 1
+                    segment_text = text[tag_end:end_pos]
+                    segments.append((segment_text, {'color': color}))
+                    i = close_pos
+                    found_tag = True
+            
+            # Size tag: #size:48#text#
+            if not found_tag:
+                size_match = re.match(r'#size:(\d+)#', text[i:])
+                if size_match:
+                    size_value = int(size_match.group(1))
+                    # Find closing tag
+                    end_pos = text.find('#', i + size_match.end())
+                    if end_pos != -1:
+                        tag_start = i + size_match.start()
+                        tag_end = i + size_match.end()
+                        close_pos = end_pos + 1
+                        segment_text = text[tag_end:end_pos]
+                        segments.append((segment_text, {'size': size_value}))
+                        i = close_pos
+                        found_tag = True
+            
+            # Bold italic: ***text***
+            if not found_tag:
+                bold_italic_match = re.match(r'\*\*\*(.+?)\*\*\*', text[i:])
+                if bold_italic_match:
+                    segment_text = bold_italic_match.group(1)
+                    segments.append((segment_text, {'bold': True, 'italic': True}))
+                    i += bold_italic_match.end()
+                    found_tag = True
+            
+            # Bold: **text** or __text__
+            if not found_tag:
+                bold_match = re.match(r'(\*\*|__)(.+?)\1', text[i:], re.DOTALL)
+                if bold_match:
+                    # Check if it's actually bold italic (***)
+                    if i + 3 < len(text) and text[i:i+3] == '***':
+                        # Skip, already handled
+                        pass
+                    else:
+                        segment_text = bold_match.group(2)
+                        segments.append((segment_text, {'bold': True}))
+                        i += bold_match.end()
+                        found_tag = True
+            
+            # Italic: *text* or _text_ (but not ** or __)
+            if not found_tag:
+                # Make sure we're not matching bold markers
+                if i + 2 < len(text) and text[i:i+2] in ('**', '__'):
+                    pass  # Skip, this is a bold marker
+                else:
+                    italic_match = re.match(r'(\*|_)([^*_\s][^*_]*?)\1', text[i:])
+                    if italic_match:
+                        segment_text = italic_match.group(2)
+                        segments.append((segment_text, {'italic': True}))
+                        i += italic_match.end()
+                        found_tag = True
+            
+            # No tag found, add character as plain text
+            if not found_tag:
+                segments.append((text[i], {}))
+                i += 1
+        
+        # Merge consecutive segments with same style
+        merged = []
+        if segments:
+            current_text = segments[0][0]
+            current_style = segments[0][1].copy()
+            
+            for text, style in segments[1:]:
+                if style == current_style:
+                    current_text += text
+                else:
+                    merged.append((current_text, current_style))
+                    current_text = text
+                    current_style = style.copy()
+            
+            merged.append((current_text, current_style))
+        
+        return merged if merged else [(text, {})]
+
     def _load_custom_image(self, url: str) -> Optional[Image.Image]:
         """Load custom uploaded image with background removal support."""
         try:
@@ -332,18 +502,33 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
             remove_bg = self.options.get('remove_hero_background', False)
             bg_method = self.options.get('bg_removal_method', 'auto')
             
+            # First load image without background removal to check transparency
             image = asset_manager.load_asset(
                 url,
                 role='hero_image',
-                remove_bg=remove_bg,
+                remove_bg=False,  # Load first to check transparency
                 bg_removal_method=bg_method,
-                alpha_matting=self.options.get('alpha_matting', True),
-                color_tolerance=self.options.get('color_tolerance', 30)
+                use_cache=True
             )
+            
+            # Check if image already has transparency
+            if self._has_transparency(image):
+                print(f"✅ Image already has transparent background, skipping removal: {url}")
+                return image
+            
+            # If background removal is requested and image doesn't have transparency, apply it
             if remove_bg:
-                print(f"✅ Loaded custom image with background removal: {url} (method: {bg_method})")
+                print(f"🎨 Applying background removal to image: {url} (method: {bg_method})")
+                image = asset_manager.remove_background(
+                    image,
+                    method=bg_method,
+                    alpha_matting=self.options.get('alpha_matting', True),
+                    color_tolerance=self.options.get('color_tolerance', 30)
+                )
+                print(f"✅ Loaded custom image with background removal: {url}")
             else:
                 print(f"✅ Loaded custom image: {url}")
+            
             return image
         except Exception as e:
             print(f"⚠️ Warning: Could not load custom image {url}: {e}")
@@ -427,9 +612,33 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         y_pos = 180
         x_pos = (self.canvas_width - img_size) // 2
         
-        # Load and add main image (centered)
-        main_image = self._load_main_image()
-        if main_image:
+        # Check hero mode: image or text
+        hero_mode = self.options.get('hero_mode', 'auto')  # 'image', 'text', or 'auto'
+        hero_text = self.content.get('hero_text', '')
+        hero_url = self.assets.get('hero_image_url')
+        
+        # Determine what to show: image or text
+        main_image = None
+        show_image = False
+        show_text = False
+        
+        if hero_mode == 'text':
+            # Explicitly use text
+            show_text = True
+        elif hero_mode == 'image' and hero_url:
+            # Explicitly use image if URL provided
+            main_image = self._load_main_image()
+            show_image = main_image is not None
+        else:
+            # Auto mode: prefer image if available, otherwise use text
+            if hero_url:
+                main_image = self._load_main_image()
+                show_image = main_image is not None
+            if not show_image and hero_text:
+                show_text = True
+        
+        # Render hero content (image or text)
+        if show_image and main_image:
             # Adjust image size based on content - make room for text below
             fitted_img = self._fit_image(main_image, img_size, img_size, mode='cover')
             
@@ -444,23 +653,38 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
                 canvas = self._add_icon(canvas, 'fake_badge', x_pos - 80, y_pos + 150)
             if 'checkmark' in supporting_icons:
                 canvas = self._add_icon(canvas, 'checkmark', x_pos + img_size + 20, y_pos + 150)
+        elif show_text and hero_text:
+            # Add hero text instead of image
+            canvas = self._add_hero_text(canvas, hero_text, x_pos, y_pos, img_size, img_size)
         
-        # Add description if provided (below image with 50px spacing)
+        # Determine if we have hero content (image or text)
+        has_hero = show_image or show_text
+        
+        # Add description if provided (below hero content with 50px spacing)
         description = self.content.get('description', '')
         description_y = None
-        if description and main_image:
-            description_y = y_pos + img_size + 50  # 50px spacing from image bottom
+        if description and has_hero:
+            description_y = y_pos + img_size + 50  # 50px spacing from hero content bottom
+            # Center the description: calculate x position for max_width centered on canvas
+            max_width = 800
+            desc_x = (self.canvas_width - max_width) // 2
+            desc_align = self.options.get('description_align', 'center')
             canvas = self._add_text_block(canvas, description, 
-                                        x=(self.canvas_width - 800) // 2, 
+                                        x=desc_x, 
                                         y=description_y, 
-                                        max_width=800)
+                                        max_width=max_width,
+                                        align=desc_align)
         elif description:
-            # If no image, show description in center
+            # If no hero content, show description in center
             description_y = 300
+            max_width = 800
+            desc_x = (self.canvas_width - max_width) // 2
+            desc_align = self.options.get('description_align', 'center')
             canvas = self._add_text_block(canvas, description, 
-                                        x=(self.canvas_width - 800) // 2, 
+                                        x=desc_x, 
                                         y=description_y, 
-                                        max_width=800)
+                                        max_width=max_width,
+                                        align=desc_align)
         
         # Add subtitle at bottom with 40px gap from description
         subtitle = self.content.get('subtitle', '')
@@ -623,82 +847,267 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         
         return default_color
 
+    def _get_font_with_style(self, base_font_path: str, font_size: int, is_rtl: bool, 
+                            bold: bool = False, italic: bool = False) -> ImageFont.ImageFont:
+        """Get font with style (bold/italic)."""
+        try:
+            font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                                   'assets', 'fonts')
+            
+            if is_rtl:
+                if bold and italic:
+                    font_path = os.path.join(font_dir, 'IRANYekanBoldFaNum.ttf')  # Closest to bold italic
+                elif bold:
+                    font_path = os.path.join(font_dir, 'IRANYekanBoldFaNum.ttf')
+                elif italic:
+                    font_path = os.path.join(font_dir, 'IRANYekanMediumFaNum.ttf')  # Closest to italic
+                else:
+                    font_path = os.path.join(font_dir, 'IRANYekanRegularFaNum.ttf')
+            else:
+                if bold and italic:
+                    # Use bold as closest approximation
+                    font_path = os.path.join(font_dir, 'NotoSans-Bold.ttf')
+                elif bold:
+                    font_path = os.path.join(font_dir, 'NotoSans-Bold.ttf')
+                elif italic:
+                    # PIL doesn't have italic NotoSans, use regular
+                    font_path = os.path.join(font_dir, 'NotoSans-Regular.ttf')
+                else:
+                    font_path = os.path.join(font_dir, 'NotoSans-Regular.ttf')
+            
+            return ImageFont.truetype(font_path, font_size)
+        except:
+            return ImageFont.load_default()
+
+    def _draw_rich_text(self, canvas: Image.Image, text: str, x: int, y: int, 
+                       max_width: int, base_font_size: int, base_color: Tuple[int, int, int],
+                       is_rtl: bool, align: str = 'center') -> int:
+        """
+        Draw rich text with formatting.
+        
+        Args:
+            canvas: Image to draw on
+            text: Text with formatting tags
+            x: Starting x position
+            y: Starting y position
+            max_width: Maximum width for text wrapping
+            base_font_size: Base font size
+            base_color: Base text color
+            is_rtl: Whether text is right-to-left
+            align: Text alignment ('left', 'center', 'right', 'justify')
+            
+        Returns:
+            Final y position after drawing
+        """
+        draw = ImageDraw.Draw(canvas)
+        
+        # Parse rich text
+        segments = self._parse_rich_text(text)
+        
+        # Wrap text into lines
+        # First, measure all segments to determine line breaks
+        lines = []
+        current_line = []
+        current_line_width = 0
+        
+        for segment_text, style in segments:
+            # Get font for this segment
+            font_size = style.get('size', base_font_size)
+            bold = style.get('bold', False)
+            italic = style.get('italic', False)
+            font = self._get_font_with_style('', font_size, is_rtl, bold, italic)
+            
+            # Simple word wrapping (can be improved)
+            words = segment_text.split() if segment_text else ['']
+            for word in words:
+                if word:
+                    test_text = word + ' '
+                    bbox = font.getbbox(test_text)
+                    word_width = bbox[2] - bbox[0]
+                    
+                    if current_line_width + word_width <= max_width:
+                        current_line.append((word + ' ', style))
+                        current_line_width += word_width
+                    else:
+                        if current_line:
+                            lines.append(current_line)
+                        current_line = [(word + ' ', style)]
+                        current_line_width = word_width
+                else:
+                    # Space
+                    bbox = font.getbbox(' ')
+                    space_width = bbox[2] - bbox[0]
+                    if current_line_width + space_width <= max_width:
+                        current_line.append((' ', style))
+                        current_line_width += space_width
+        
+        if current_line:
+            lines.append(current_line)
+        
+        # Draw lines
+        current_y = y
+        for line_segments in lines:
+            # Calculate line width for alignment
+            line_width = 0
+            for segment_text, style in line_segments:
+                font_size = style.get('size', base_font_size)
+                bold = style.get('bold', False)
+                italic = style.get('italic', False)
+                font = self._get_font_with_style('', font_size, is_rtl, bold, italic)
+                bbox = font.getbbox(segment_text)
+                line_width += bbox[2] - bbox[0]
+            
+            # Calculate x position based on alignment
+            if align == 'center':
+                line_x = x + (max_width - line_width) // 2
+            elif align == 'right':
+                line_x = x + max_width - line_width
+            elif align == 'justify' and len(line_segments) > 1:
+                # Calculate actual text width (measure all segments)
+                total_text_width = 0
+                for seg_text, seg_style in line_segments:
+                    seg_font_size = seg_style.get('size', base_font_size)
+                    seg_bold = seg_style.get('bold', False)
+                    seg_italic = seg_style.get('italic', False)
+                    seg_font = self._get_font_with_style('', seg_font_size, is_rtl, seg_bold, seg_italic)
+                    bbox = seg_font.getbbox(seg_text)
+                    total_text_width += bbox[2] - bbox[0]
+                
+                # Count spaces between segments
+                space_count = len(line_segments) - 1
+                if space_count > 0 and total_text_width < max_width:
+                    extra_space = (max_width - total_text_width) / space_count
+                else:
+                    extra_space = 0
+                line_x = x
+            else:
+                line_x = x
+            
+            # Draw segments
+            segment_x = line_x
+            for segment_text, style in line_segments:
+                font_size = style.get('size', base_font_size)
+                bold = style.get('bold', False)
+                italic = style.get('italic', False)
+                color = style.get('color', base_color)
+                
+                font = self._get_font_with_style('', font_size, is_rtl, bold, italic)
+                
+                # Prepare text for RTL
+                if is_rtl:
+                    segment_text = self._prepare_arabic_text(segment_text)
+                
+                draw.text((segment_x, current_y), segment_text, font=font, fill=color)
+                
+                bbox = font.getbbox(segment_text)
+                segment_width = bbox[2] - bbox[0]
+                
+                if align == 'justify' and len(line_segments) > 1:
+                    # Add extra space for justification
+                    segment_x += segment_width + extra_space
+                else:
+                    segment_x += segment_width
+            
+            # Move to next line
+            if line_segments:
+                first_seg = line_segments[0]
+                font_size = first_seg[1].get('size', base_font_size)
+                bold = first_seg[1].get('bold', False)
+                italic = first_seg[1].get('italic', False)
+                font = self._get_font_with_style('', font_size, is_rtl, bold, italic)
+                bbox = font.getbbox('A')  # Sample height
+                line_height = bbox[3] - bbox[1]
+                current_y += line_height + 10
+        
+        return current_y
+
+    def _add_hero_text(self, canvas: Image.Image, hero_text: str, x: int, y: int, 
+                      width: int, height: int) -> Image.Image:
+        """
+        Add hero text in the hero image area.
+        
+        Args:
+            canvas: Image to draw on
+            hero_text: Text to display (supports rich text formatting)
+            x: Left position of hero area
+            y: Top position of hero area
+            width: Width of hero area
+            height: Height of hero area
+        """
+        # Get alignment option
+        align = self.options.get('hero_text_align', 'center')
+        
+        # Get text color
+        hero_text_color = self._get_text_color([255, 255, 255], 'hero_text')
+        
+        # Get text size
+        hero_text_size = self.options.get('hero_text_size', 48)  # Default 48px
+        
+        # Detect RTL
+        is_rtl = self._is_rtl_text(hero_text)
+        
+        # Draw rich text with center alignment by default
+        max_width = width - 40  # Padding
+        text_x = x + 20  # Left padding
+        text_y = y + 20  # Top padding
+        
+        self._draw_rich_text(
+            canvas, hero_text, text_x, text_y, max_width,
+            hero_text_size, hero_text_color, is_rtl, align
+        )
+        
+        return canvas
+
     def _add_title_section(self, canvas: Image.Image, y_offset: int = 80) -> Image.Image:
-        """Add title text at top."""
+        """Add title text at top with rich text and alignment support."""
         title = self.content.get('title', '')
         if not title:
             return canvas
         
-        draw = ImageDraw.Draw(canvas)
+        # Get alignment option
+        align = self.options.get('title_align', 'center')
         
-        # Get font
-        is_rtl = self._is_rtl_text(title)
-        font_size = 44  # Reduced from 56 for better hierarchy
-        try:
-            font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                                   'assets', 'fonts')
-            if is_rtl:
-                font_path = os.path.join(font_dir, 'IRANYekanBoldFaNum.ttf')
-            else:
-                font_path = os.path.join(font_dir, 'NotoSans-Bold.ttf')
-            font = ImageFont.truetype(font_path, font_size)
-        except:
-            font = ImageFont.load_default()
-        
-        # Prepare text
-        if is_rtl:
-            title = self._prepare_arabic_text(title)
-        
-        # Get color - support generic text_color option
+        # Get text color
         title_color = self._get_text_color([255, 215, 0], 'title')
         
-        # Wrap text
-        lines = self._wrap_text(title, font, self.canvas_width - 120)
+        # Detect RTL
+        is_rtl = self._is_rtl_text(title)
         
-        # Draw lines (center-aligned)
-        y_pos = y_offset
-        for line in lines:
-            bbox = font.getbbox(line)
-            line_width = bbox[2] - bbox[0]
-            line_x = (self.canvas_width - line_width) // 2
-            
-            draw.text((line_x, y_pos), line, font=font, fill=title_color)
-            y_pos += bbox[3] - bbox[1] + 15
+        # Use rich text rendering
+        max_width = self.canvas_width - 120
+        text_x = 60  # Left margin
+        font_size = 44  # Reduced from 56 for better hierarchy
+        
+        self._draw_rich_text(
+            canvas, title, text_x, y_offset, max_width,
+            font_size, title_color, is_rtl, align
+        )
         
         return canvas
 
     def _add_subtitle(self, canvas: Image.Image, subtitle: str, y_pos: int = 850) -> Image.Image:
-        """Add subtitle text."""
-        draw = ImageDraw.Draw(canvas)
+        """Add subtitle text with rich text and alignment support."""
+        if not subtitle:
+            return canvas
         
-        is_rtl = self._is_rtl_text(subtitle)
-        font_size = 24  # Reduced from 32 for better hierarchy
-        try:
-            font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                                   'assets', 'fonts')
-            if is_rtl:
-                font_path = os.path.join(font_dir, 'IRANYekanMediumFaNum.ttf')
-            else:
-                font_path = os.path.join(font_dir, 'NotoSans-Regular.ttf')
-            font = ImageFont.truetype(font_path, font_size)
-        except:
-            font = ImageFont.load_default()
+        # Get alignment option
+        align = self.options.get('subtitle_align', 'center')
         
-        if is_rtl:
-            subtitle = self._prepare_arabic_text(subtitle)
-        
+        # Get text color
         subtitle_color = self._get_text_color([255, 255, 255], 'subtitle')
         
-        lines = self._wrap_text(subtitle, font, self.canvas_width - 120)
+        # Detect RTL
+        is_rtl = self._is_rtl_text(subtitle)
         
-        current_y = y_pos
-        for line in lines:
-            bbox = font.getbbox(line)
-            line_width = bbox[2] - bbox[0]
-            line_x = (self.canvas_width - line_width) // 2
-            
-            draw.text((line_x, current_y), line, font=font, fill=subtitle_color)
-            current_y += bbox[3] - bbox[1] + 10
+        # Use rich text rendering
+        max_width = self.canvas_width - 120
+        text_x = 60  # Left margin
+        font_size = 24  # Reduced from 32 for better hierarchy
+        
+        self._draw_rich_text(
+            canvas, subtitle, text_x, y_pos, max_width,
+            font_size, subtitle_color, is_rtl, align
+        )
         
         return canvas
 
@@ -752,35 +1161,25 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         
         return canvas
 
-    def _add_text_block(self, canvas: Image.Image, text: str, x: int, y: int, max_width: int) -> Image.Image:
-        """Add text block at specific position."""
-        draw = ImageDraw.Draw(canvas)
+    def _add_text_block(self, canvas: Image.Image, text: str, x: int, y: int, 
+                       max_width: int, align: str = 'center') -> Image.Image:
+        """Add text block at specific position with rich text and alignment support."""
+        if not text:
+            return canvas
         
-        is_rtl = self._is_rtl_text(text)
-        font_size = 32
-        try:
-            font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                                   'assets', 'fonts')
-            if is_rtl:
-                font_path = os.path.join(font_dir, 'IRANYekanRegularFaNum.ttf')
-            else:
-                font_path = os.path.join(font_dir, 'NotoSans-Regular.ttf')
-            font = ImageFont.truetype(font_path, font_size)
-        except:
-            font = ImageFont.load_default()
-        
-        if is_rtl:
-            text = self._prepare_arabic_text(text)
-        
+        # Get text color
         text_color = self._get_text_color([255, 255, 255], 'body_text')
         
-        lines = self._wrap_text(text, font, max_width)
+        # Detect RTL
+        is_rtl = self._is_rtl_text(text)
         
-        current_y = y
-        for line in lines:
-            draw.text((x, current_y), line, font=font, fill=text_color)
-            bbox = font.getbbox(line)
-            current_y += bbox[3] - bbox[1] + 12
+        # Use rich text rendering
+        font_size = 32
+        
+        self._draw_rich_text(
+            canvas, text, x, y, max_width,
+            font_size, text_color, is_rtl, align
+        )
         
         return canvas
 
@@ -979,10 +1378,14 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         base_schema = super().get_schema()
         base_schema.update({
             "required_content": ["title"],
-            "optional_content": ["subtitle", "body_text", "bullets"],
+            "optional_content": ["subtitle", "description", "body_text", "bullets", "hero_text"],
             "optional_assets": ["hero_image_url", "logo_url", "icon_urls"],
             "options": {
                 "layout_style": "'centered_portrait' (default), 'symbol_focus', 'product_layout', 'split_screen', 'gradient_background'",
+                "hero_mode": "'auto' (default), 'image', or 'text' - Use image or text in hero area",
+                "hero_text_align": "'center' (default), 'left', 'right', 'justify' - Hero text alignment",
+                "hero_text_color": "RGB color array or string - Hero text color",
+                "hero_text_size": "int (default: 48) - Hero text font size",
                 "use_random_image": "bool (default: false) - Use random placeholder if no hero_image_url",
                 "random_image_seed": "int - Seed for consistent random images",
                 "show_slide_number": "bool (default: false)",
@@ -991,9 +1394,13 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
                 "show_logo": "bool (default: true)",
                 "show_brand_footer": "bool (default: true)",
                 "title_color": "RGB color array (default: [255, 215, 0])",
+                "title_align": "'center' (default), 'left', 'right' - Title alignment",
                 "subtitle_color": "RGB color array (default: [255, 255, 255])",
+                "subtitle_align": "'center' (default), 'left', 'right' - Subtitle alignment",
                 "body_text_color": "RGB color array (default: [255, 255, 255])",
+                "description_align": "'center' (default), 'left', 'right', 'justify' - Description alignment",
                 "text_color": "string or RGB array - Generic text color override ('white', 'black', 'yellow', 'red', or [R,G,B])",
+                "enable_rich_text": "bool (default: true) - Enable rich text formatting",
                 "supporting_icons": "List of icon types (e.g., ['fake_badge', 'checkmark'])",
                 "footer_text": "string (default: '@yuanpayment  |  @yuan-payment') - Footer social handles text",
                 "footer_text_color": "string or RGB array (default: white) - Footer text color",
