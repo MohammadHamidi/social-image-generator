@@ -1,0 +1,31 @@
+{
+  "layout_type": "yuan_payment_carousel",
+  "content": {
+    "title": "راهنمای کامل پرداخت",
+    "bullets": [
+      "ثبت‌نام سریع و آسان",
+      "تایید هویت خودکار",
+      "پرداخت در کمترین زمان",
+      "پشتیبانی دائمی"
+    ]
+  },
+  "assets": {},
+  "background": {
+    "mode": "gradient",
+    "gradient": {
+      "colors": [[240, 200, 200], [255, 255, 255]],
+      "direction": "vertical"
+    }
+  },
+  "options": {
+    "layout_style": "gradient_background",
+    "use_random_image": true,
+    "random_image_seed": 1005,
+    "show_slide_number": true,
+    "slide_number": 5,
+    "total_slides": 5,
+    "title_color": [194, 0, 0],
+    "body_text_color": [73, 80, 87]
+  }
+}
+

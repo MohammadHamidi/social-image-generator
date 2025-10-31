@@ -291,10 +291,12 @@ class LayoutEngine(ABC):
                 return fitted_image.convert('RGB')
         
         except Exception as e:
-            print(f"❌ ERROR: Could not load background image: {e}")
+            error_msg = f"Could not load background image from URL: {image_url}. Error: {str(e)}"
+            print(f"❌ ERROR: {error_msg}")
+            print(f"❌ Exception type: {type(e).__name__}")
             import traceback
             traceback.print_exc()
-            print("Falling back to gradient background")
+            print("⚠️ Falling back to gradient background")
             return self._create_gradient_background()
 
     def _fit_image(self, image: Image.Image,

@@ -64,5 +64,6 @@ try:
     from . import split_image_text
     from . import caption_box
     from . import overlay_text
+    from . import yuan_payment_carousel
 except ImportError as e:
     pass  # Layout not available yet

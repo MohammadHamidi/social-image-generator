@@ -1,0 +1,28 @@
+{
+  "layout_type": "yuan_payment_carousel",
+  "content": {
+    "title": "مقایسه سرعت و هزینه",
+    "body_text": "روش‌های مختلف پرداخت را با هم مقایسه کنید",
+    "bullets": [
+      "SWIFT: 3-5 روز کاری",
+      "یوان مستقیم: همان روز",
+      "هزینه کمتر تا 50%"
+    ]
+  },
+  "assets": {
+    "hero_image_url": "https://picsum.photos/540/800?random=1004"
+  },
+  "background": {
+    "mode": "solid_color",
+    "color": [194, 0, 0]
+  },
+  "options": {
+    "layout_style": "split_screen",
+    "show_slide_number": true,
+    "slide_number": 4,
+    "total_slides": 5,
+    "title_color": [255, 215, 0],
+    "body_text_color": [255, 255, 255]
+  }
+}
+

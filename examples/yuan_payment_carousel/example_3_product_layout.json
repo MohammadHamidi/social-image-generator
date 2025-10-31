@@ -1,0 +1,27 @@
+{
+  "layout_type": "yuan_payment_carousel",
+  "content": {
+    "title": "محصولات ما",
+    "bullets": [
+      "پرداخت مستقیم با یوان",
+      "تبدیل ارز با نرخ مناسب",
+      "پشتیبانی 24/7"
+    ]
+  },
+  "assets": {
+    "hero_image_url": "https://picsum.photos/800/600?random=1003"
+  },
+  "background": {
+    "mode": "solid_color",
+    "color": [194, 0, 0]
+  },
+  "options": {
+    "layout_style": "product_layout",
+    "show_slide_number": true,
+    "slide_number": 3,
+    "total_slides": 5,
+    "title_color": [255, 215, 0],
+    "body_text_color": [255, 255, 255]
+  }
+}
+

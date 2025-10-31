@@ -1,0 +1,131 @@
+{
+  "metadata": {
+    "campaign_name": "Yuan Payment Educational Carousel",
+    "description": "Complete 5-slide educational carousel about Yuan payment methods"
+  },
+  "carousel_posts": [
+    {
+      "slide": 1,
+      "layout_type": "yuan_payment_carousel",
+      "content": {
+        "title": "مقایسه روش‌های پرداخت",
+        "subtitle": "کدام روش برای شما مناسب‌تر است؟"
+      },
+      "assets": {
+        "hero_image_url": "https://picsum.photos/800/800?random=2001"
+      },
+      "background": {
+        "mode": "solid_color",
+        "color": [194, 0, 0]
+      },
+      "options": {
+        "layout_style": "centered_portrait",
+        "show_slide_number": true,
+        "slide_number": 1,
+        "total_slides": 5,
+        "supporting_icons": ["fake_badge", "checkmark"]
+      }
+    },
+    {
+      "slide": 2,
+      "layout_type": "yuan_payment_carousel",
+      "content": {
+        "title": "پرداخت با یوان چینی",
+        "body_text": "پرداخت مستقیم با یوان چینی سریع‌تر و کم‌هزینه‌تر از روش‌های سنتی است."
+      },
+      "assets": {},
+      "background": {
+        "mode": "gradient",
+        "gradient": {
+          "colors": [[194, 0, 0], [168, 0, 0]],
+          "direction": "vertical"
+        }
+      },
+      "options": {
+        "layout_style": "symbol_focus",
+        "use_random_image": true,
+        "random_image_seed": 2002,
+        "slide_number": 2,
+        "total_slides": 5
+      }
+    },
+    {
+      "slide": 3,
+      "layout_type": "yuan_payment_carousel",
+      "content": {
+        "title": "محصولات و خدمات",
+        "bullets": [
+          "پرداخت مستقیم با یوان",
+          "تبدیل ارز با نرخ مناسب",
+          "پشتیبانی 24/7"
+        ]
+      },
+      "assets": {
+        "hero_image_url": "https://picsum.photos/800/600?random=2003"
+      },
+      "background": {
+        "mode": "solid_color",
+        "color": [194, 0, 0]
+      },
+      "options": {
+        "layout_style": "product_layout",
+        "slide_number": 3,
+        "total_slides": 5
+      }
+    },
+    {
+      "slide": 4,
+      "layout_type": "yuan_payment_carousel",
+      "content": {
+        "title": "مقایسه سرعت و هزینه",
+        "body_text": "مقایسه روش‌های مختلف",
+        "bullets": [
+          "SWIFT: 3-5 روز کاری",
+          "یوان مستقیم: همان روز",
+          "هزینه کمتر تا 50%"
+        ]
+      },
+      "assets": {
+        "hero_image_url": "https://picsum.photos/540/800?random=2004"
+      },
+      "background": {
+        "mode": "solid_color",
+        "color": [194, 0, 0]
+      },
+      "options": {
+        "layout_style": "split_screen",
+        "slide_number": 4,
+        "total_slides": 5
+      }
+    },
+    {
+      "slide": 5,
+      "layout_type": "yuan_payment_carousel",
+      "content": {
+        "title": "راهنمای کامل",
+        "bullets": [
+          "ثبت‌نام سریع و آسان",
+          "تایید هویت خودکار",
+          "پرداخت در کمترین زمان",
+          "پشتیبانی دائمی"
+        ]
+      },
+      "assets": {},
+      "background": {
+        "mode": "gradient",
+        "gradient": {
+          "colors": [[240, 200, 200], [255, 255, 255]],
+          "direction": "vertical"
+        }
+      },
+      "options": {
+        "layout_style": "gradient_background",
+        "use_random_image": true,
+        "random_image_seed": 2005,
+        "slide_number": 5,
+        "total_slides": 5
+      }
+    }
+  ]
+}
+

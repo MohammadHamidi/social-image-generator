@@ -1,0 +1,45 @@
+{
+    "layout_type": "yuan_payment_carousel",
+    "content": {
+        "title": "پرداخت با یوان چینی",
+        "body_text": "پرداخت مستقیم با یوان چینی سریع‌تر و کم‌هزینه‌تر از روش‌های سنتی است. بدون نیاز به واسطه و با کمترین کارمزد."
+    },
+    "assets": {},
+    "background": {
+        "mode": "gradient",
+        "gradient": {
+            "colors": [
+                [
+                    194,
+                    0,
+                    0
+                ],
+                [
+                    168,
+                    0,
+                    0
+                ]
+            ],
+            "direction": "vertical"
+        }
+    },
+    "options": {
+        "layout_style": "symbol_focus",
+        "use_random_image": true,
+        "random_image_seed": 1002,
+        "show_slide_number": true,
+        "slide_number": 2,
+        "total_slides": 5,
+        "show_brand_footer": true,
+        "title_color": [
+            255,
+            215,
+            0
+        ],
+        "body_text_color": [
+            255,
+            255,
+            255
+        ]
+    }
+}

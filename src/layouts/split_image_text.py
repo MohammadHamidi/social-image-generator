@@ -105,17 +105,25 @@ class SplitImageTextLayout(PhotoLayoutEngine):
                         image_position: str, image_ratio: float) -> Image.Image:
         """Add hero image to canvas in split configuration."""
         from ..asset_manager import get_asset_manager
+        import traceback
+
+        hero_url = self.assets.get('hero_image_url', '')
+        
+        if not hero_url:
+            raise ValueError("hero_image_url is required but not provided in assets")
 
         try:
+            print(f"🖼️  Loading hero image for split_image_text layout from: {hero_url}")
             asset_manager = get_asset_manager()
             hero_image = asset_manager.load_asset(
-                self.assets['hero_image_url'],
+                hero_url,
                 role='hero_image',
                 remove_bg=self.remove_hero_bg,
                 bg_removal_method=self.bg_removal_method,
                 alpha_matting=self.bg_alpha_matting,
                 color_tolerance=self.bg_color_tolerance
             )
+            print(f"✅ Hero image loaded successfully! Size: {hero_image.size}")
 
             if split_direction == 'vertical':
                 # Vertical split (left/right)
@@ -153,11 +161,22 @@ class SplitImageTextLayout(PhotoLayoutEngine):
                     y_pos = self.canvas_height - image_height
                     canvas.paste(fitted_image, (0, y_pos))
 
+            print(f"✅ Hero image placed successfully in split layout")
             return canvas
 
+        except ValueError as e:
+            # Re-raise ValueError with more context
+            error_msg = f"Failed to load hero image for split_image_text layout. URL: {hero_url}. Error: {str(e)}"
+            print(f"❌ ERROR: {error_msg}")
+            traceback.print_exc()
+            raise ValueError(error_msg) from e
         except Exception as e:
-            print(f"Warning: Could not load hero image: {e}")
-            return canvas
+            # Catch any other exceptions and provide detailed error info
+            error_msg = f"Failed to load hero image for split_image_text layout. URL: {hero_url}. Error: {str(e)}"
+            print(f"❌ ERROR: {error_msg}")
+            print(f"❌ Exception type: {type(e).__name__}")
+            traceback.print_exc()
+            raise ValueError(error_msg) from e
 
     def _add_split_text(self, canvas: Image.Image, split_direction: str,
                        image_position: str, image_ratio: float) -> Image.Image:
