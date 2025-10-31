@@ -26,41 +26,41 @@ RUN apt-get update && apt-get install -y \
     tcl-dev \
     tk-dev \
     gosu \
+    curl \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user FIRST (before copying files)
+# Create non-root user
 RUN useradd --create-home --shell /bin/bash --uid 1000 appuser
 
-# Copy requirements and install Python dependencies with error handling
+# Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir --retries 3 --timeout 300 -r requirements.txt || \
-    (echo "❌ pip install failed, retrying with different options..." && \
-    pip install --no-cache-dir --ignore-installed --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt)
+    (echo "❌ pip install failed, retrying..." && \
+    pip install --no-cache-dir --ignore-installed -r requirements.txt)
 
-# Verify Python packages were installed correctly
+# Verify Python packages
 RUN python -c "import flask, PIL, numpy; print('✅ Core packages installed successfully')" || \
-    (echo "❌ Core packages verification failed" && exit 1)
+    (echo '❌ Core packages verification failed' && exit 1)
 
-# Copy project files with verification
+# Copy project files
 COPY src/ ./src/
 COPY assets/ ./assets/
 COPY social_image_api.py ./
 COPY fix-permissions.sh ./
 
-# Verify critical files were copied
+# Verify critical files
 RUN test -f social_image_api.py && \
     test -f src/enhanced_social_generator.py && \
     test -d assets/fonts && \
     test -f fix-permissions.sh && \
-    echo "✅ All critical files copied successfully" || \
-    (echo "❌ Critical files missing after copy" && exit 1)
+    echo "✅ All critical files copied successfully"
 
 # Make permission fix script executable
 RUN chmod +x fix-permissions.sh
 
-# Create all necessary directories with proper structure
+# Create necessary directories with proper structure and permissions
 RUN mkdir -p \
     uploads/main \
     uploads/background \
@@ -71,27 +71,24 @@ RUN mkdir -p \
     cache/downloads \
     assets/fonts/downloaded \
     config && \
-    # Set ownership for appuser
     chown -R appuser:appuser uploads output generated cache assets config && \
-    # Ensure directories are fully writable by appuser
     chmod -R 755 assets/fonts && \
     chmod -R 775 uploads output generated
 
-# Set environment variables
-ENV PYTHONPATH=/app/src
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV FLASK_ENV=production
-ENV PORT=${PORT}
+# Environment configuration
+ENV PYTHONPATH=/app/src \
+    PYTHONDONTWRITEBYTECODE=1 \
+    FLASK_ENV=production \
+    PORT=${PORT}
 
-# Expose the port the app runs on (Coolify will detect this)
+# Expose the port the app runs on
 EXPOSE ${PORT}
 
-# Health check - uses the Flask /health endpoint for proper monitoring
-# Coolify will use this to verify the application is running correctly
+# Healthcheck using curl (for Coolify monitoring)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT}/health').read()" || exit 1
+    CMD curl -fsS http://localhost:${PORT}/health || exit 1
 
-# Labels for Coolify (optional but helpful)
+# Labels (optional)
 LABEL maintainer="Social Image Generator"
 LABEL description="AI-powered social media image generator with multi-language support"
 LABEL coolify.managed="true"
@@ -99,27 +96,5 @@ LABEL coolify.managed="true"
 # Switch to non-root user
 USER appuser
 
-# Default command - start Flask API server
-CMD ["python", "social_image_api.py"]
-
-# Install curl before switching users (needed for healthcheck)
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
-
-# Set environment variables
-ENV PYTHONPATH=/app/src
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV FLASK_ENV=production
-ENV PORT=${PORT}
-
-# Expose the port the app runs on
-EXPOSE ${PORT}
-
-# Healthcheck - use curl instead of Python urllib
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/health || exit 1
-
-# Switch to non-root user
-USER appuser
-
-# Default command - start Flask API server
+# Start Flask API server
 CMD ["python", "social_image_api.py"]
