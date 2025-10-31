@@ -918,8 +918,16 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         """
         draw = ImageDraw.Draw(canvas)
         
-        # Parse rich text
-        segments = self._parse_rich_text(text)
+        # For RTL text, prepare the entire text first to preserve word order
+        # This ensures BiDi algorithm processes the full context correctly
+        if is_rtl:
+            # Prepare full text first (before parsing), then parse the prepared text
+            prepared_text = self._prepare_arabic_text(text)
+            # Parse the prepared text for formatting
+            segments = self._parse_rich_text(prepared_text)
+        else:
+            # Parse rich text normally for LTR
+            segments = self._parse_rich_text(text)
         
         # Wrap text into lines
         # First, measure all segments to determine line breaks
@@ -964,44 +972,13 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         # Draw lines
         current_y = y
         for line_segments in lines:
+            # Note: For RTL, segments are already prepared from the full text above
+            
             # Calculate line width for alignment
             line_width = 0
-            for segment_text, style in line_segments:
-                font_size = style.get('size', base_font_size)
-                bold = style.get('bold', False)
-                italic = style.get('italic', False)
-                font = self._get_font_with_style('', font_size, is_rtl, bold, italic)
-                bbox = font.getbbox(segment_text)
-                line_width += bbox[2] - bbox[0]
+            segment_widths = []
+            segment_data = []  # Store (font, color, text, width) for each segment
             
-            # Calculate x position based on alignment
-            if align == 'center':
-                line_x = x + (max_width - line_width) // 2
-            elif align == 'right':
-                line_x = x + max_width - line_width
-            elif align == 'justify' and len(line_segments) > 1:
-                # Calculate actual text width (measure all segments)
-                total_text_width = 0
-                for seg_text, seg_style in line_segments:
-                    seg_font_size = seg_style.get('size', base_font_size)
-                    seg_bold = seg_style.get('bold', False)
-                    seg_italic = seg_style.get('italic', False)
-                    seg_font = self._get_font_with_style('', seg_font_size, is_rtl, seg_bold, seg_italic)
-                    bbox = seg_font.getbbox(seg_text)
-                    total_text_width += bbox[2] - bbox[0]
-                
-                # Count spaces between segments
-                space_count = len(line_segments) - 1
-                if space_count > 0 and total_text_width < max_width:
-                    extra_space = (max_width - total_text_width) / space_count
-                else:
-                    extra_space = 0
-                line_x = x
-            else:
-                line_x = x
-            
-            # Draw segments
-            segment_x = line_x
             for segment_text, style in line_segments:
                 font_size = style.get('size', base_font_size)
                 bold = style.get('bold', False)
@@ -1010,20 +987,55 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
                 
                 font = self._get_font_with_style('', font_size, is_rtl, bold, italic)
                 
-                # Prepare text for RTL
-                if is_rtl:
+                # For non-RTL text, prepare if it contains RTL characters
+                # (RTL text is already prepared above)
+                if not is_rtl and self._is_rtl_text(segment_text):
                     segment_text = self._prepare_arabic_text(segment_text)
                 
-                draw.text((segment_x, current_y), segment_text, font=font, fill=color)
-                
                 bbox = font.getbbox(segment_text)
-                segment_width = bbox[2] - bbox[0]
-                
-                if align == 'justify' and len(line_segments) > 1:
-                    # Add extra space for justification
-                    segment_x += segment_width + extra_space
+                seg_width = bbox[2] - bbox[0]
+                line_width += seg_width
+                segment_widths.append(seg_width)
+                segment_data.append((font, color, segment_text, seg_width))
+            
+            # Calculate x position based on alignment
+            if align == 'center':
+                line_x = x + (max_width - line_width) // 2
+            elif align == 'right':
+                line_x = x + max_width - line_width
+            elif align == 'justify' and len(line_segments) > 1:
+                space_count = len(line_segments) - 1
+                if space_count > 0 and line_width < max_width:
+                    extra_space = (max_width - line_width) / space_count
                 else:
-                    segment_x += segment_width
+                    extra_space = 0
+                line_x = x
+            else:
+                line_x = x
+            
+            # Draw segments
+            if is_rtl:
+                # For RTL, render from right to left (reverse order)
+                # But we need to reverse the segment_data list to render in correct visual order
+                segment_data_rtl = list(reversed(segment_data))
+                segment_x = line_x + line_width
+                for i, (font, color, segment_text, seg_width) in enumerate(segment_data_rtl):
+                    segment_x -= seg_width
+                    draw.text((segment_x, current_y), segment_text, font=font, fill=color)
+                    
+                    # Add spacing for justify
+                    if align == 'justify' and i < len(segment_data_rtl) - 1:
+                        segment_x -= extra_space
+            else:
+                # For LTR, render from left to right
+                segment_x = line_x
+                for i, (font, color, segment_text, seg_width) in enumerate(segment_data):
+                    draw.text((segment_x, current_y), segment_text, font=font, fill=color)
+                    
+                    if align == 'justify' and i < len(segment_data) - 1:
+                        segment_x += seg_width + extra_space
+                    else:
+                        segment_x += seg_width
             
             # Move to next line - improved line spacing (1.4-1.6 em)
             if line_segments:
