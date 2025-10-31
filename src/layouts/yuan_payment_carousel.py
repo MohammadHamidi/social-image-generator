@@ -217,7 +217,16 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
             try:
                 from src.asset_manager import get_asset_manager
                 asset_manager = get_asset_manager()
-                logo = asset_manager.load_asset(logo_url.strip(), role='logo', use_cache=True)
+                # Add background removal support for logos
+                remove_logo_bg = self.options.get('remove_logo_background', False)
+                logo_bg_method = self.options.get('logo_bg_removal_method', 'auto')
+                logo = asset_manager.load_asset(
+                    logo_url.strip(), 
+                    role='logo', 
+                    use_cache=True,
+                    remove_bg=remove_logo_bg,
+                    bg_removal_method=logo_bg_method
+                )
                 
                 # Get logo size from options, default to 120
                 logo_size = self.options.get('logo_size', 120)
@@ -315,17 +324,26 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
             return self._load_random_image()
 
     def _load_custom_image(self, url: str) -> Optional[Image.Image]:
-        """Load custom uploaded image."""
+        """Load custom uploaded image with background removal support."""
         try:
             from src.asset_manager import get_asset_manager
             asset_manager = get_asset_manager()
+            # Read background removal options with proper defaults
+            remove_bg = self.options.get('remove_hero_background', False)
+            bg_method = self.options.get('bg_removal_method', 'auto')
+            
             image = asset_manager.load_asset(
                 url,
                 role='hero_image',
-                remove_bg=self.options.get('remove_hero_background', False),
-                bg_removal_method=self.options.get('bg_removal_method', 'auto')
+                remove_bg=remove_bg,
+                bg_removal_method=bg_method,
+                alpha_matting=self.options.get('alpha_matting', True),
+                color_tolerance=self.options.get('color_tolerance', 30)
             )
-            print(f"✅ Loaded custom image: {url}")
+            if remove_bg:
+                print(f"✅ Loaded custom image with background removal: {url} (method: {bg_method})")
+            else:
+                print(f"✅ Loaded custom image: {url}")
             return image
         except Exception as e:
             print(f"⚠️ Warning: Could not load custom image {url}: {e}")
@@ -400,12 +418,13 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
 
     def _render_centered_portrait(self, canvas: Image.Image) -> Image.Image:
         """Render centered portrait layout."""
-        # Add title at top
-        canvas = self._add_title_section(canvas, y_offset=120)
+        # Add title at top with proper spacing
+        canvas = self._add_title_section(canvas, y_offset=80)
         
-        # Initialize variables
-        img_size = 500
-        y_pos = 250
+        # Initialize variables - reduced image size to 70%
+        img_size = 350  # Reduced from 500 to 70%
+        # Calculate y_pos: 80px top padding + ~60px title height + 50px spacing = ~190px
+        y_pos = 180
         x_pos = (self.canvas_width - img_size) // 2
         
         # Load and add main image (centered)
@@ -426,28 +445,33 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
             if 'checkmark' in supporting_icons:
                 canvas = self._add_icon(canvas, 'checkmark', x_pos + img_size + 20, y_pos + 150)
         
-        # Add description if provided (below image)
+        # Add description if provided (below image with 50px spacing)
         description = self.content.get('description', '')
+        description_y = None
         if description and main_image:
+            description_y = y_pos + img_size + 50  # 50px spacing from image bottom
             canvas = self._add_text_block(canvas, description, 
                                         x=(self.canvas_width - 800) // 2, 
-                                        y=y_pos + img_size + 20, 
+                                        y=description_y, 
                                         max_width=800)
         elif description:
             # If no image, show description in center
+            description_y = 300
             canvas = self._add_text_block(canvas, description, 
                                         x=(self.canvas_width - 800) // 2, 
-                                        y=300, 
+                                        y=description_y, 
                                         max_width=800)
         
-        # Add subtitle at bottom
+        # Add subtitle at bottom with 40px gap from description
         subtitle = self.content.get('subtitle', '')
         if subtitle:
-            if description:
-                # If description shown, subtitle goes further down
-                canvas = self._add_subtitle(canvas, subtitle, y_pos=850)
+            if description and description_y:
+                # Calculate subtitle position: description bottom + 40px gap
+                # Estimate description height: ~3-4 lines = ~120-160px
+                subtitle_y = description_y + 140 + 40  # Description height estimate + 40px gap
             else:
-                canvas = self._add_subtitle(canvas, subtitle, y_pos=850)
+                subtitle_y = 850
+            canvas = self._add_subtitle(canvas, subtitle, y_pos=subtitle_y)
         
         return canvas
 
@@ -599,7 +623,7 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         
         return default_color
 
-    def _add_title_section(self, canvas: Image.Image, y_offset: int = 100) -> Image.Image:
+    def _add_title_section(self, canvas: Image.Image, y_offset: int = 80) -> Image.Image:
         """Add title text at top."""
         title = self.content.get('title', '')
         if not title:
@@ -609,7 +633,7 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         
         # Get font
         is_rtl = self._is_rtl_text(title)
-        font_size = 56
+        font_size = 44  # Reduced from 56 for better hierarchy
         try:
             font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                                    'assets', 'fonts')
@@ -648,7 +672,7 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         draw = ImageDraw.Draw(canvas)
         
         is_rtl = self._is_rtl_text(subtitle)
-        font_size = 32
+        font_size = 24  # Reduced from 32 for better hierarchy
         try:
             font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                                    'assets', 'fonts')
@@ -829,8 +853,8 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         footer_height = 100
         footer_y = self.canvas_height - footer_height
         
-        # Draw decorative separator line
-        line_y = footer_y - 5
+        # Draw decorative separator line - moved up 40px
+        line_y = footer_y - 45  # Moved up from footer_y - 5 to footer_y - 45
         draw.line([(60, line_y), (self.canvas_width - 60, line_y)], fill=(255, 215, 0), width=2)
         
         # Add brand icon if available (pagoda + yuan symbol)
@@ -855,22 +879,39 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
             except Exception as e:
                 print(f"⚠️ Warning: Could not load brand icon: {e}")
         
-        # Add social handles text
-        social_text = "@yuanpayment  |  @yuan-payment"
+        # Add social handles text - make it dynamic and configurable
+        social_text = self.options.get('footer_text', "@yuanpayment  |  @yuan-payment")
+        if not social_text:
+            social_text = "@yuanpayment  |  @yuan-payment"  # Default fallback
+        
         try:
             font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                                    'assets', 'fonts')
             font_path = os.path.join(font_dir, 'NotoSans-Regular.ttf')
-            font = ImageFont.truetype(font_path, 24)
+            font_size = self.options.get('footer_font_size', 24)
+            font = ImageFont.truetype(font_path, font_size)
         except:
             font = ImageFont.load_default()
+        
+        # Get footer text color from options
+        footer_text_color = self.options.get('footer_text_color', (255, 255, 255))
+        if isinstance(footer_text_color, (list, tuple)) and len(footer_text_color) == 3:
+            footer_text_color = tuple(int(c) for c in footer_text_color)
+        elif isinstance(footer_text_color, str):
+            color_map = {
+                'white': (255, 255, 255),
+                'black': (0, 0, 0),
+                'yellow': (255, 215, 0),
+                'red': (194, 0, 0)
+            }
+            footer_text_color = color_map.get(footer_text_color.lower(), (255, 255, 255))
         
         bbox = font.getbbox(social_text)
         text_width = bbox[2] - bbox[0]
         text_x = (self.canvas_width - text_width) // 2
-        text_y = footer_y + 30
+        text_y = footer_y + 10  # Moved up 30px from footer_y + 30 to footer_y + 10
         
-        draw.text((text_x, text_y), social_text, font=font, fill=(255, 255, 255))
+        draw.text((text_x, text_y), social_text, font=font, fill=footer_text_color)
         
         return canvas
 
@@ -944,7 +985,7 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
                 "layout_style": "'centered_portrait' (default), 'symbol_focus', 'product_layout', 'split_screen', 'gradient_background'",
                 "use_random_image": "bool (default: false) - Use random placeholder if no hero_image_url",
                 "random_image_seed": "int - Seed for consistent random images",
-                "show_slide_number": "bool (default: true)",
+                "show_slide_number": "bool (default: false)",
                 "slide_number": "int - Current slide number (1-based)",
                 "total_slides": "int - Total slides in carousel",
                 "show_logo": "bool (default: true)",
@@ -952,7 +993,17 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
                 "title_color": "RGB color array (default: [255, 215, 0])",
                 "subtitle_color": "RGB color array (default: [255, 255, 255])",
                 "body_text_color": "RGB color array (default: [255, 255, 255])",
-                "supporting_icons": "List of icon types (e.g., ['fake_badge', 'checkmark'])"
+                "text_color": "string or RGB array - Generic text color override ('white', 'black', 'yellow', 'red', or [R,G,B])",
+                "supporting_icons": "List of icon types (e.g., ['fake_badge', 'checkmark'])",
+                "footer_text": "string (default: '@yuanpayment  |  @yuan-payment') - Footer social handles text",
+                "footer_text_color": "string or RGB array (default: white) - Footer text color",
+                "footer_font_size": "int (default: 24) - Footer text font size",
+                "remove_hero_background": "bool (default: false) - Remove background from main/hero image",
+                "bg_removal_method": "str (default: 'auto') - Background removal method: 'auto', 'edge', 'color'",
+                "alpha_matting": "bool (default: true) - Enable alpha matting for better edges",
+                "color_tolerance": "int (default: 30) - Color tolerance for color-based removal",
+                "remove_logo_background": "bool (default: false) - Remove background from logo",
+                "logo_bg_removal_method": "str (default: 'auto') - Logo background removal method"
             }
         })
         return base_schema
