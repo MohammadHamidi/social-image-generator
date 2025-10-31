@@ -397,7 +397,8 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
                         # Color name
                         color_map = {
                             'red': (194, 0, 0),
-                            'yellow': (255, 215, 0),
+                            'yellow': (255, 216, 74),  # #FFD84A - better contrast
+                            'yellow_light': (255, 236, 112),  # #FFEC70 - lighter yellow
                             'white': (255, 255, 255),
                             'black': (0, 0, 0),
                             'blue': (0, 123, 255),
@@ -602,14 +603,40 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
             return image.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
     def _render_centered_portrait(self, canvas: Image.Image) -> Image.Image:
-        """Render centered portrait layout."""
-        # Add title at top with proper spacing
-        canvas = self._add_title_section(canvas, y_offset=80)
+        """Render centered portrait layout with proportional spacing."""
+        # Add title at top with proper spacing (+40px padding = 120px total from top)
+        canvas = self._add_title_section(canvas, y_offset=120)
+        
+        # Add description under title (16-24px margin after title)
+        description = self.content.get('description', '')
+        description_y = None
+        if description:
+            # Title ends around y_offset + title_height, add 20px margin
+            # Estimate title height: ~60-80px depending on wrapping
+            title_bottom = 120 + 70  # y_offset + estimated title height
+            description_y = title_bottom + 20  # 20px margin (within 16-24px range)
+            
+            max_width = 800
+            desc_x = (self.canvas_width - max_width) // 2
+            desc_align = self.options.get('description_align', 'center')
+            canvas = self._add_text_block(canvas, description, 
+                                        x=desc_x, 
+                                        y=description_y, 
+                                        max_width=max_width,
+                                        align=desc_align)
+            # Update description_y to actual end position for hero text positioning
+            # We'll recalculate after drawing
         
         # Initialize variables - reduced image size to 70%
         img_size = 350  # Reduced from 500 to 70%
-        # Calculate y_pos: 80px top padding + ~60px title height + 50px spacing = ~190px
-        y_pos = 180
+        # Calculate y_pos: After title (~190px) + description (~100px if present) + spacing
+        # For hero text area: move it down to center in upper 2/3 of canvas (≈360px from top)
+        # This gives better vertical balance
+        if description:
+            y_pos = 280  # After title + description
+        else:
+            y_pos = 250  # After title only
+        
         x_pos = (self.canvas_width - img_size) // 2
         
         # Check hero mode: image or text
@@ -660,41 +687,30 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         # Determine if we have hero content (image or text)
         has_hero = show_image or show_text
         
-        # Add description if provided (below hero content with 50px spacing)
-        description = self.content.get('description', '')
-        description_y = None
-        if description and has_hero:
-            description_y = y_pos + img_size + 50  # 50px spacing from hero content bottom
-            # Center the description: calculate x position for max_width centered on canvas
-            max_width = 800
-            desc_x = (self.canvas_width - max_width) // 2
-            desc_align = self.options.get('description_align', 'center')
-            canvas = self._add_text_block(canvas, description, 
-                                        x=desc_x, 
-                                        y=description_y, 
-                                        max_width=max_width,
-                                        align=desc_align)
-        elif description:
-            # If no hero content, show description in center
-            description_y = 300
-            max_width = 800
-            desc_x = (self.canvas_width - max_width) // 2
-            desc_align = self.options.get('description_align', 'center')
-            canvas = self._add_text_block(canvas, description, 
-                                        x=desc_x, 
-                                        y=description_y, 
-                                        max_width=max_width,
-                                        align=desc_align)
+        # Note: Description is now shown under title (handled above), not below hero
         
-        # Add subtitle at bottom with 40px gap from description
+        # Add subtitle closer to hero text block (+40px gap)
         subtitle = self.content.get('subtitle', '')
         if subtitle:
-            if description and description_y:
-                # Calculate subtitle position: description bottom + 40px gap
-                # Estimate description height: ~3-4 lines = ~120-160px
-                subtitle_y = description_y + 140 + 40  # Description height estimate + 40px gap
+            if show_text and hero_text:
+                # Position subtitle 40px below hero text
+                # Hero text starts at y_pos + 90 (internal padding), and has multiline content
+                # Estimate hero text height: count lines and calculate
+                hero_line_count = hero_text.count('\n') + 1
+                # Estimate: each line ~60-80px with 1.5x line spacing
+                estimated_hero_height = hero_line_count * 70  # ~70px per line
+                hero_start_y = y_pos + 90  # Hero text internal start
+                hero_bottom = hero_start_y + estimated_hero_height
+                subtitle_y = hero_bottom + 40  # 40px gap from hero
+            elif show_image:
+                # If image, position below image
+                subtitle_y = y_pos + img_size + 40
             else:
-                subtitle_y = 850
+                # Fallback - position after description or at reasonable default
+                if description:
+                    subtitle_y = 700  # Below description area
+                else:
+                    subtitle_y = 750
             canvas = self._add_subtitle(canvas, subtitle, y_pos=subtitle_y)
         
         return canvas
@@ -831,7 +847,8 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
                 color_map = {
                     'white': (255, 255, 255),
                     'black': (0, 0, 0),
-                    'yellow': (255, 215, 0),
+                    'yellow': (255, 216, 74),  # #FFD84A - better contrast
+                    'yellow_light': (255, 236, 112),  # #FFEC70 - lighter yellow
                     'red': (194, 0, 0)
                 }
                 if generic_color.lower() in color_map:
@@ -1008,7 +1025,7 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
                 else:
                     segment_x += segment_width
             
-            # Move to next line
+            # Move to next line - improved line spacing (1.4-1.6 em)
             if line_segments:
                 first_seg = line_segments[0]
                 font_size = first_seg[1].get('size', base_font_size)
@@ -1017,7 +1034,8 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
                 font = self._get_font_with_style('', font_size, is_rtl, bold, italic)
                 bbox = font.getbbox('A')  # Sample height
                 line_height = bbox[3] - bbox[1]
-                current_y += line_height + 10
+                # Line spacing: 1.5x line height (between 1.4-1.6 em)
+                current_y += int(line_height * 1.5)
         
         return current_y
 
@@ -1046,10 +1064,23 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         # Detect RTL
         is_rtl = self._is_rtl_text(hero_text)
         
-        # Draw rich text with center alignment by default
+        # Draw rich text with improved center alignment for multiline Persian
         max_width = width - 40  # Padding
         text_x = x + 20  # Left padding
-        text_y = y + 20  # Top padding
+        
+        # Move hero text down by +70px (between 60-80px range) for better vertical balance
+        # Also apply visual center correction for multiline Persian text
+        text_y = y + 90  # Increased from 20 to 90 (+70px down)
+        
+        # For center alignment with multiline Persian, apply small visual correction
+        if align == 'center':
+            # Parse text to get line count and calculate visual center offset
+            segments = self._parse_rich_text(hero_text)
+            # Simple estimation: if we have multiline text, apply small offset
+            line_count = hero_text.count('\n') + 1
+            if line_count > 1 and is_rtl:
+                # Apply visual center correction for RTL multiline
+                text_x += 15  # Small offset to account for bold/colored line width differences
         
         self._draw_rich_text(
             canvas, hero_text, text_x, text_y, max_width,
@@ -1058,7 +1089,7 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         
         return canvas
 
-    def _add_title_section(self, canvas: Image.Image, y_offset: int = 80) -> Image.Image:
+    def _add_title_section(self, canvas: Image.Image, y_offset: int = 120) -> Image.Image:
         """Add title text at top with rich text and alignment support."""
         title = self.content.get('title', '')
         if not title:
@@ -1067,8 +1098,13 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         # Get alignment option
         align = self.options.get('title_align', 'center')
         
-        # Get text color
-        title_color = self._get_text_color([255, 215, 0], 'title')
+        # Get text color - use better yellow for contrast
+        title_color_raw = self._get_text_color([255, 216, 74], 'title')  # #FFD84A for better contrast
+        # Ensure it's a tuple
+        if isinstance(title_color_raw, (list, tuple)) and len(title_color_raw) == 3:
+            title_color = tuple(int(c) for c in title_color_raw)
+        else:
+            title_color = (255, 216, 74)  # #FFD84A
         
         # Detect RTL
         is_rtl = self._is_rtl_text(title)
@@ -1076,9 +1112,9 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         # Use rich text rendering
         max_width = self.canvas_width - 120
         text_x = 60  # Left margin
-        font_size = 44  # Reduced from 56 for better hierarchy
+        font_size = 58  # Increased from 44 by ~32% (25-35% range)
         
-        self._draw_rich_text(
+        final_y = self._draw_rich_text(
             canvas, title, text_x, y_offset, max_width,
             font_size, title_color, is_rtl, align
         )
@@ -1093,8 +1129,12 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         # Get alignment option
         align = self.options.get('subtitle_align', 'center')
         
-        # Get text color
-        subtitle_color = self._get_text_color([255, 255, 255], 'subtitle')
+        # Get text color - use lighter yellow to differentiate from hero_text yellow
+        subtitle_color_raw = self._get_text_color([255, 236, 112], 'subtitle')  # #FFEC70 lighter yellow
+        if isinstance(subtitle_color_raw, (list, tuple)) and len(subtitle_color_raw) == 3:
+            subtitle_color = tuple(int(c) for c in subtitle_color_raw)
+        else:
+            subtitle_color = (255, 236, 112)
         
         # Detect RTL
         is_rtl = self._is_rtl_text(subtitle)
@@ -1102,7 +1142,7 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         # Use rich text rendering
         max_width = self.canvas_width - 120
         text_x = 60  # Left margin
-        font_size = 24  # Reduced from 32 for better hierarchy
+        font_size = 29  # Increased from 24 by ~20% (24 * 1.2 = 28.8, rounded to 29)
         
         self._draw_rich_text(
             canvas, subtitle, text_x, y_pos, max_width,
@@ -1287,7 +1327,7 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
             font_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
                                    'assets', 'fonts')
             font_path = os.path.join(font_dir, 'NotoSans-Regular.ttf')
-            font_size = self.options.get('footer_font_size', 24)
+            font_size = self.options.get('footer_font_size', 27)  # Increased from 24 to 27 (between 26-28px)
             font = ImageFont.truetype(font_path, font_size)
         except:
             font = ImageFont.load_default()
@@ -1308,7 +1348,8 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         bbox = font.getbbox(social_text)
         text_width = bbox[2] - bbox[0]
         text_x = (self.canvas_width - text_width) // 2
-        text_y = footer_y + 10  # Moved up 30px from footer_y + 30 to footer_y + 10
+        # Reduce margin-bottom by 40px: footer_y + 10 becomes footer_y - 30 (moved up 40px)
+        text_y = footer_y - 30  # Moved up 40px from footer_y + 10
         
         draw.text((text_x, text_y), social_text, font=font, fill=footer_text_color)
         
