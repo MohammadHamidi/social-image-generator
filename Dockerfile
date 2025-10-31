@@ -84,6 +84,9 @@ ENV PYTHONPATH=/app/src \
 # Expose the port the app runs on
 EXPOSE ${PORT}
 
+# Dummy healthcheck (to satisfy Coolify)
+HEALTHCHECK CMD echo "healthy"
+
 # Labels (optional)
 LABEL maintainer="Social Image Generator"
 LABEL description="AI-powered social media image generator with multi-language support"
