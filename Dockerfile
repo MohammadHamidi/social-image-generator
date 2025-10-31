@@ -84,10 +84,6 @@ ENV PYTHONPATH=/app/src \
 # Expose the port the app runs on
 EXPOSE ${PORT}
 
-# Healthcheck using curl (for Coolify monitoring)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -fsS http://localhost:${PORT}/health || exit 1
-
 # Labels (optional)
 LABEL maintainer="Social Image Generator"
 LABEL description="AI-powered social media image generator with multi-language support"
