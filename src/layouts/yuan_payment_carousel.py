@@ -212,21 +212,33 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
     def _add_logo_area(self, canvas: Image.Image) -> Image.Image:
         """Add logo area at top with optional slide number."""
         # Add logo if available
-        if self.options.get('show_logo', True) and 'logo_url' in self.assets and self.assets['logo_url']:
+        logo_url = self.assets.get('logo_url', '')
+        if self.options.get('show_logo', True) and logo_url and logo_url.strip():
             try:
                 from src.asset_manager import get_asset_manager
                 asset_manager = get_asset_manager()
-                logo = asset_manager.load_asset(self.assets['logo_url'], role='logo', use_cache=True)
+                logo = asset_manager.load_asset(logo_url.strip(), role='logo', use_cache=True)
                 
-                # Resize logo (max 200px width)
-                logo_width = min(200, logo.width)
+                # Get logo size from options, default to 120
+                logo_size = self.options.get('logo_size', 120)
+                logo_width = min(logo_size, logo.width)
                 logo_aspect = logo.height / logo.width
                 logo_height = int(logo_width * logo_aspect)
                 logo = logo.resize((logo_width, logo_height), Image.Resampling.LANCZOS)
                 
-                # Position: top-left, 60px padding
-                x_pos = 60
-                y_pos = 60
+                # Position based on options, default to top-left
+                logo_position = self.options.get('logo_position', 'top-left')
+                padding = 60
+                
+                if logo_position == 'top-center':
+                    x_pos = (self.canvas_width - logo_width) // 2
+                    y_pos = padding
+                elif logo_position == 'top-right':
+                    x_pos = self.canvas_width - logo_width - padding
+                    y_pos = padding
+                else:  # top-left (default)
+                    x_pos = padding
+                    y_pos = padding
                 
                 if logo.mode == 'RGBA':
                     canvas.paste(logo, (x_pos, y_pos), logo)
@@ -235,8 +247,8 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
             except Exception as e:
                 print(f"⚠️ Warning: Could not load logo: {e}")
 
-        # Add slide number (top-right)
-        if self.options.get('show_slide_number', True):
+        # Add slide number (top-right) - default to False
+        if self.options.get('show_slide_number', False):
             slide_num = self.options.get('slide_number', 1)
             total_slides = self.options.get('total_slides', 1)
             canvas = self._add_slide_number(canvas, slide_num, total_slides, position='top-right')
@@ -391,15 +403,16 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         # Add title at top
         canvas = self._add_title_section(canvas, y_offset=120)
         
+        # Initialize variables
+        img_size = 500
+        y_pos = 250
+        x_pos = (self.canvas_width - img_size) // 2
+        
         # Load and add main image (centered)
         main_image = self._load_main_image()
         if main_image:
-            # Size: ~600x600 in center
-            img_size = 600
+            # Adjust image size based on content - make room for text below
             fitted_img = self._fit_image(main_image, img_size, img_size, mode='cover')
-            
-            x_pos = (self.canvas_width - img_size) // 2
-            y_pos = 300  # Below title area
             
             if fitted_img.mode == 'RGBA':
                 canvas.paste(fitted_img, (x_pos, y_pos), fitted_img)
@@ -409,14 +422,32 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
             # Add supporting icons
             supporting_icons = self.options.get('supporting_icons', [])
             if 'fake_badge' in supporting_icons:
-                canvas = self._add_icon(canvas, 'fake_badge', x_pos - 80, y_pos + 200)
+                canvas = self._add_icon(canvas, 'fake_badge', x_pos - 80, y_pos + 150)
             if 'checkmark' in supporting_icons:
-                canvas = self._add_icon(canvas, 'checkmark', x_pos + img_size + 20, y_pos + 200)
+                canvas = self._add_icon(canvas, 'checkmark', x_pos + img_size + 20, y_pos + 150)
         
-        # Add subtitle/caption at bottom
+        # Add description if provided (below image)
+        description = self.content.get('description', '')
+        if description and main_image:
+            canvas = self._add_text_block(canvas, description, 
+                                        x=(self.canvas_width - 800) // 2, 
+                                        y=y_pos + img_size + 20, 
+                                        max_width=800)
+        elif description:
+            # If no image, show description in center
+            canvas = self._add_text_block(canvas, description, 
+                                        x=(self.canvas_width - 800) // 2, 
+                                        y=300, 
+                                        max_width=800)
+        
+        # Add subtitle at bottom
         subtitle = self.content.get('subtitle', '')
         if subtitle:
-            canvas = self._add_subtitle(canvas, subtitle, y_pos=850)
+            if description:
+                # If description shown, subtitle goes further down
+                canvas = self._add_subtitle(canvas, subtitle, y_pos=850)
+            else:
+                canvas = self._add_subtitle(canvas, subtitle, y_pos=850)
         
         return canvas
 
@@ -542,6 +573,32 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         
         return canvas
 
+    def _get_text_color(self, default_color: Tuple[int, int, int], color_type: str = 'title') -> Tuple[int, int, int]:
+        """Get text color with support for generic text_color option."""
+        # Check for generic text_color option first
+        generic_color = self.options.get('text_color')
+        if generic_color:
+            # Handle string colors
+            if isinstance(generic_color, str):
+                color_map = {
+                    'white': (255, 255, 255),
+                    'black': (0, 0, 0),
+                    'yellow': (255, 215, 0),
+                    'red': (194, 0, 0)
+                }
+                if generic_color.lower() in color_map:
+                    return color_map[generic_color.lower()]
+            # Handle RGB array
+            elif isinstance(generic_color, (list, tuple)) and len(generic_color) == 3:
+                return tuple(int(c) for c in generic_color)
+        
+        # Fall back to specific color option
+        specific_color = self.options.get(f'{color_type}_color', default_color)
+        if isinstance(specific_color, (list, tuple)) and len(specific_color) == 3:
+            return tuple(int(c) for c in specific_color)
+        
+        return default_color
+
     def _add_title_section(self, canvas: Image.Image, y_offset: int = 100) -> Image.Image:
         """Add title text at top."""
         title = self.content.get('title', '')
@@ -568,8 +625,8 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         if is_rtl:
             title = self._prepare_arabic_text(title)
         
-        # Get color
-        title_color = tuple(self.options.get('title_color', [255, 215, 0]))  # Yellow
+        # Get color - support generic text_color option
+        title_color = self._get_text_color([255, 215, 0], 'title')
         
         # Wrap text
         lines = self._wrap_text(title, font, self.canvas_width - 120)
@@ -606,7 +663,7 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         if is_rtl:
             subtitle = self._prepare_arabic_text(subtitle)
         
-        subtitle_color = tuple(self.options.get('subtitle_color', [255, 255, 255]))
+        subtitle_color = self._get_text_color([255, 255, 255], 'subtitle')
         
         lines = self._wrap_text(subtitle, font, self.canvas_width - 120)
         
@@ -656,7 +713,7 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         if is_rtl:
             text = self._prepare_arabic_text(text)
         
-        text_color = tuple(self.options.get('body_text_color', [73, 80, 87]))
+        text_color = self._get_text_color([73, 80, 87], 'body_text')
         
         # Wrap text for box
         lines = self._wrap_text(text, font, box_width - 40)
@@ -691,7 +748,7 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         if is_rtl:
             text = self._prepare_arabic_text(text)
         
-        text_color = tuple(self.options.get('body_text_color', [255, 255, 255]))
+        text_color = self._get_text_color([255, 255, 255], 'body_text')
         
         lines = self._wrap_text(text, font, max_width)
         
@@ -729,7 +786,7 @@ class YuanPaymentCarouselLayout(CarouselLayoutEngine):
         except:
             font = ImageFont.load_default()
         
-        bullet_color = tuple(self.options.get('body_text_color', [255, 255, 255]))
+        bullet_color = self._get_text_color([255, 255, 255], 'body_text')
         bullet_size = 12
         bullet_spacing = 20
         
