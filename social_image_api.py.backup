@@ -23,33 +23,16 @@ import stat
 # Add src to path for imports
 sys.path.append('src')
 from enhanced_social_generator import EnhancedSocialImageGenerator
-from security_utils import SSRFProtection, PathValidator, InputValidator
-from upload_handler import UploadHandler, create_upload_response
-from cache_manager import get_cache_manager
 
 app = Flask(__name__)
-
-# Configure CORS with security - load allowed origins from environment
-ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:5000').split(',')
-CORS(app, resources={
-    r"/*": {
-        "origins": ALLOWED_ORIGINS,
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type"],
-        "max_age": 3600
-    }
-})
+CORS(app)  # Enable CORS for all routes
 
 # Configuration
 UPLOAD_FOLDER = 'uploads'
 GENERATED_FOLDER = 'generated'
-CACHE_FOLDER = 'cache'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 # URL Configuration - Set to False to return relative paths instead of full URLs
 RETURN_FULL_URLS = False
-
-# Initialize cache manager
-cache = get_cache_manager(cache_dir=CACHE_FOLDER, ttl=3600)
 
 def safe_makedirs(path, exist_ok=True):
     """
@@ -471,22 +454,11 @@ def upload_background_image():
 
 @app.route('/uploads/<folder>/<filename>')
 def uploaded_file(folder, filename):
-    """Serve uploaded files with enhanced security and error handling"""
-    # Validate folder name
+    """Serve uploaded files with enhanced error handling"""
     if folder not in ['main', 'watermark', 'background']:
         return jsonify({'error': 'Invalid folder'}), 400
 
-    # Validate filename to prevent path traversal
-    if not PathValidator.validate_filename(filename):
-        return jsonify({'error': 'Invalid filename'}), 400
-
-    # Use safe path joining to prevent directory traversal
-    base_path = os.path.join(app.config['UPLOAD_FOLDER'], folder)
-    filepath = PathValidator.safe_join_path(base_path, filename)
-
-    if not filepath:
-        return jsonify({'error': 'Invalid file path'}), 400
-
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], folder, filename)
     if not os.path.exists(filepath):
         return jsonify({'error': 'File not found'}), 404
 
@@ -496,12 +468,12 @@ def uploaded_file(folder, filename):
     try:
         return send_file(filepath)
     except Exception as e:
-        print(f"Error serving file: {str(e)}")
+        print(f"Error serving file {filepath}: {str(e)}")
         return jsonify({'error': 'Failed to serve file'}), 500
 
 @app.route('/generate', methods=['POST'])
 def generate_image():
-    """Generate social media image endpoint with comprehensive error handling and security"""
+    """Generate social media image endpoint with comprehensive error handling"""
     try:
         # Get JSON data
         data = request.get_json()
@@ -515,8 +487,6 @@ def generate_image():
 
         # Extract optional configuration
         background_color = data.get('background_color', [255, 255, 255])
-        canvas_width = data.get('canvas_width', 1080)
-        canvas_height = data.get('canvas_height', 1350)
         main_image_url = data.get('main_image_url')
         watermark_image_url = data.get('watermark_image_url')
         background_image_url = data.get('background_image_url')
@@ -526,44 +496,9 @@ def generate_image():
         if not headline:
             return jsonify({'error': 'Headline is required'}), 400
 
-        # Validate text lengths
-        try:
-            InputValidator.validate_text_length(headline, 'Headline')
-            InputValidator.validate_text_length(subheadline, 'Subheadline')
-            InputValidator.validate_text_length(brand, 'Brand')
-        except ValueError as e:
-            return jsonify({'error': str(e)}), 400
-
-        # Validate canvas dimensions
-        try:
-            InputValidator.validate_canvas_size(canvas_width, canvas_height)
-        except ValueError as e:
-            return jsonify({'error': str(e)}), 400
-
-        # Validate background color
-        try:
-            InputValidator.validate_color(background_color, 'Background color')
-        except ValueError as e:
-            return jsonify({'error': str(e)}), 400
-
-        # Validate URLs for SSRF protection
-        if main_image_url:
-            try:
-                SSRFProtection.validate_url(main_image_url)
-            except ValueError as e:
-                return jsonify({'error': f'Invalid main image URL: {str(e)}'}), 400
-
-        if watermark_image_url:
-            try:
-                SSRFProtection.validate_url(watermark_image_url)
-            except ValueError as e:
-                return jsonify({'error': f'Invalid watermark URL: {str(e)}'}), 400
-
-        if background_image_url:
-            try:
-                SSRFProtection.validate_url(background_image_url)
-            except ValueError as e:
-                return jsonify({'error': f'Invalid background URL: {str(e)}'}), 400
+        # Validate background color format
+        if not isinstance(background_color, list) or len(background_color) != 3:
+            return jsonify({'error': 'background_color must be an RGB array [r, g, b]'}), 400
 
         # Calculate watermark position based on choice
         watermark_positions = {
@@ -576,10 +511,10 @@ def generate_image():
         
         watermark_pos = watermark_positions.get(watermark_position, [860, 1200])
 
-        # Create configuration with validated values
+        # Create configuration
         config = {
-            'canvas_width': canvas_width,
-            'canvas_height': canvas_height,
+            'canvas_width': 1080,
+            'canvas_height': 1350,
             'background_color': background_color,
             'use_custom_images': bool(main_image_url or watermark_image_url or background_image_url),
             'custom_images': {
@@ -755,17 +690,8 @@ def generate_image():
 
 @app.route('/generated/<filename>')
 def generated_file(filename):
-    """Serve generated image files with enhanced security and error handling"""
-    # Validate filename to prevent path traversal
-    if not PathValidator.validate_filename(filename):
-        return jsonify({'error': 'Invalid filename'}), 400
-
-    # Use safe path joining to prevent directory traversal
-    filepath = PathValidator.safe_join_path(app.config['GENERATED_FOLDER'], filename)
-
-    if not filepath:
-        return jsonify({'error': 'Invalid file path'}), 400
-
+    """Serve generated image files with enhanced error handling"""
+    filepath = os.path.join(app.config['GENERATED_FOLDER'], filename)
     if not os.path.exists(filepath):
         return jsonify({'error': 'Generated file not found'}), 404
 
@@ -775,8 +701,8 @@ def generated_file(filename):
     try:
         return send_file(filepath, mimetype='image/png')
     except Exception as e:
-        print(f"Error serving generated file: {str(e)}")
-        return jsonify({'error': 'Failed to serve file'}), 500
+        print(f"Error serving generated file {filepath}: {str(e)}")
+        return jsonify({'error': 'Failed to serve generated file'}), 500
 
 @app.route('/files')
 def list_files():
@@ -861,27 +787,6 @@ def generate_text_layout():
             return jsonify({'error': 'List layout requires "title" and "items" fields in content'}), 400
         elif layout_type == 'testimonial' and (not content.get('quote') or not content.get('person_name')):
             return jsonify({'error': 'Testimonial layout requires "quote" and "person_name" fields in content'}), 400
-
-        # Validate text lengths
-        for key, value in content.items():
-            if isinstance(value, str):
-                try:
-                    InputValidator.validate_text_length(value, key.title())
-                except ValueError as e:
-                    return jsonify({'error': str(e)}), 400
-            elif key == 'items' and isinstance(value, list):
-                try:
-                    InputValidator.validate_list_items(value, 'List items')
-                except ValueError as e:
-                    return jsonify({'error': str(e)}), 400
-
-        # Validate background color if provided
-        background_color = data.get('background_color')
-        if background_color:
-            try:
-                InputValidator.validate_color(background_color, 'Background color')
-            except ValueError as e:
-                return jsonify({'error': str(e)}), 400
         
         # Load configuration
         config_path = data.get('config', 'config/text_layouts_config.json')
